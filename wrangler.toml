@@ -9,7 +9,7 @@ run_worker_first = true
 
 # Client ID مش سر. الـ Secret والـ SESSION_SECRET بيتحطوا بـ: wrangler secret put
 [vars]
-GOOGLE_CLIENT_ID = "PUT_YOUR_CLIENT_ID_HERE.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID = "875994009871-vn14ekp88f8c6d4qpm5h262he70rdj2a.apps.googleusercontent.com"
 
 [[durable_objects.bindings]]
 name = "ROOM"
