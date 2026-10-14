@@ -1,0 +1,36 @@
+name = "locked-room"
+main = "src/worker.js"
+compatibility_date = "2025-09-01"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true
+
+# Client ID مش سر. الـ Secret والـ SESSION_SECRET بيتحطوا بـ: wrangler secret put
+[vars]
+GOOGLE_CLIENT_ID = "PUT_YOUR_CLIENT_ID_HERE.apps.googleusercontent.com"
+
+[[durable_objects.bindings]]
+name = "ROOM"
+class_name = "Room"
+
+[[durable_objects.bindings]]
+name = "ACCOUNT"
+class_name = "Account"
+
+[[durable_objects.bindings]]
+name = "ROOM_PASSWORDS"
+class_name = "RoomPasswords"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Account"]
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["RoomPasswords"]
