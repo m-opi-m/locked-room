@@ -214,23 +214,41 @@
   $('lrCaption').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); send(); } });
   $('lrClose').onclick = close;
 
-  // ---------- إرسال علطول (من غير معاينة) ----------
+  // ---------- إرسال علطول (من غير معاينة) + فقاعة تحميل في الشات ----------
+  // الفقاعة بتظهر فوراً بالصورة وعليها دايرة تحميل؛ لو فشل الإرسال بتظهر علامة إعادة، واضغط عليها تحاول تاني.
+  const logEl = () => $('log');
+  const toBottom = () => { const l = logEl(); if (l) l.scrollTop = l.scrollHeight; };
+  function pendingBubble(f) {
+    const m = document.createElement('div'); m.className = 'm me lrPending';
+    const wrap = document.createElement('div'); wrap.className = 'lrPendWrap';
+    const im = document.createElement('img'); im.alt = 'صورة'; im.src = URL.createObjectURL(f); im.draggable = false;
+    const ov = document.createElement('button'); ov.type = 'button'; ov.className = 'lrPendOv';
+    const note = document.createElement('small'); note.className = 'lrPendNote';
+    wrap.append(im, ov); m.append(wrap, note);
+    const state = (s, msg) => {
+      m.dataset.state = s; ov.disabled = s === 'sending';
+      ov.innerHTML = s === 'sending' ? '<span class="lrSpin2"></span>' : '<span class="lrRetry">⟳</span>';
+      note.textContent = s === 'sending' ? 'جاري الإرسال…' : (msg ? msg + ' — ' : '') + 'اضغط على الصورة لإعادة المحاولة';
+    };
+    const run = async () => {
+      state('sending');
+      try {
+        let g = f; if (!g.type) g = new File([f], f.name || 'image.jpg', { type: 'image/jpeg' });
+        await window.lrSendSelectedImage(g);
+        URL.revokeObjectURL(im.src); m.remove();
+      } catch (e) { state('failed', e?.message || 'فشل الإرسال'); }
+    };
+    ov.onclick = (e) => { e.stopPropagation(); if (m.dataset.state === 'failed') run(); };
+    logEl().append(m); toBottom(); im.onload = toBottom;
+    return run();
+  }
   async function sendNow(files) {
     const list = files.filter(looksImage);
     if (!list.length) return toast('الملف المختار مش صورة.');
+    window.lrPickAt = 0;
+    if (!logEl()) return toast('افتح الشات الأول.');
     if (typeof window.lrSendSelectedImage !== 'function') return toast('مسار إرسال الصور غير جاهز، حدّث الصفحة.');
-    try {
-      toast(list.length > 1 ? `جاري إرسال ${list.length} صور…` : 'جاري إرسال الصورة…');
-      for (let i = 0; i < list.length; i++) {
-        let f = list[i];
-        if (!f.type) f = new File([f], f.name || 'image.jpg', { type: 'image/jpeg' }); // بعض الموبايلات بترجع نوع فاضي
-        await window.lrSendSelectedImage(f);
-        if (i < list.length - 1) await new Promise((r) => setTimeout(r, 400));
-      }
-      $('lrToast')?.classList.remove('show');
-    } catch (e) {
-      toast(e?.message || 'فشل إرسال الصورة. اتأكد إنك متصل بالغرفة وجرب تاني.');
-    }
+    for (let i = 0; i < list.length; i++) { await pendingBubble(list[i]); }
   }
 
   // ---------- فتح المحرر بعد اختيار الصور ----------
@@ -238,6 +256,7 @@
   file.onchange = null;
   file.addEventListener('change', (e) => {
     e.stopImmediatePropagation();
+    window.lrPickAt = 0;
     const files = [...(file.files || [])];
     if (!files.length) return;
     if (!PREVIEW_BEFORE_SEND) { sendNow(files).finally(() => { try { file.value = ''; } catch {} }); return; }
