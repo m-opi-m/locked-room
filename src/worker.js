@@ -1,4 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
+import { connect } from 'cloudflare:sockets';
 
 const PAGES = new Set(['/', '/app.js', '/style.css', '/logo.png', '/icon-192.png', '/badge-96.png', '/sw.js']);
 const knockPayload = (ar) => ({ title: ar ? 'غرفة مقفولة' : 'Locked Room', body: ar ? 'هناك من يطرق الباب' : 'Someone is knocking at the door', lang: ar ? 'ar' : 'en', dir: ar ? 'rtl' : 'ltr', icon: '/icon-192.png', badge: '/badge-96.png', tag: 'locked-room-knock-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url: '/' });
@@ -96,7 +97,8 @@ function deviceName(req) {
   else if (/Mac OS X|Macintosh/.test(ua)) os = 'Mac';
   else if (/CrOS/.test(ua)) os = 'Chromebook';
   else if (/Linux/.test(ua)) os = 'Linux';
-  if (/Edg\//.test(ua)) br = 'Edge';
+  if (/LockedRoomApp/.test(ua)) br = 'التطبيق';
+  else if (/Edg\//.test(ua)) br = 'Edge';
   else if (/OPR\/|Opera/.test(ua)) br = 'Opera';
   else if (/SamsungBrowser/.test(ua)) br = 'Samsung Internet';
   else if (/Firefox|FxiOS/.test(ua)) br = 'Firefox';
@@ -223,6 +225,90 @@ async function googleCallback(req, url, env, did) {
   }
 }
 
+// ---------- استعادة الحساب بكود على الإيميل ----------
+function maskEmail(e) {
+  const [u, d] = String(e || '').split('@');
+  if (!d) return '';
+  return (u.length <= 2 ? u[0] + '*' : u.slice(0, 2) + '***') + '@' + d;
+}
+const b64text = (str) => { const b = enc.encode(str); let r = ''; for (let i = 0; i < b.length; i += 0x8000) r += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(r); };
+const wrap76 = (x) => x.replace(/(.{76})/g, '$1\r\n');
+
+// إرسال إيميل عن طريق SMTP (جيميل بـ App Password): من غير دومين، وبيبعت لأي إيميل
+async function smtpSend(env, to, subject, text, html, connectFn = connect) {
+  const user = String(env.GMAIL_USER || '').trim(), pass = String(env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
+  const sock = connectFn({ hostname: env.SMTP_HOST || 'smtp.gmail.com', port: Number(env.SMTP_PORT) || 465 }, { secureTransport: 'on', allowHalfOpen: false });
+  const reader = sock.readable.getReader(), writer = sock.writable.getWriter(), dec = new TextDecoder();
+  let buf = '';
+  const read = async () => {
+    const lines = [];
+    for (;;) {
+      let i;
+      while ((i = buf.indexOf('\r\n')) < 0) {
+        const { value, done } = await reader.read();
+        if (done) throw new Error('smtp closed');
+        buf += dec.decode(value, { stream: true });
+      }
+      const line = buf.slice(0, i); buf = buf.slice(i + 2); lines.push(line);
+      if (/^\d{3}( |$)/.test(line)) return { code: +line.slice(0, 3), text: lines.join('\n') };
+    }
+  };
+  const cmd = async (c, ok) => {
+    if (c !== null) await writer.write(enc.encode(c + '\r\n'));
+    const r = await read();
+    if (!ok.includes(r.code)) throw new Error('smtp ' + r.text);
+    return r;
+  };
+  try {
+    await cmd(null, [220]);
+    await cmd('EHLO locked-room', [250]);
+    await cmd('AUTH PLAIN ' + b64text('\0' + user + '\0' + pass), [235]);
+    await cmd('MAIL FROM:<' + user + '>', [250]);
+    await cmd('RCPT TO:<' + to + '>', [250, 251]);
+    await cmd('DATA', [354]);
+    const bd = 'lr' + rand(12).replace(/[^A-Za-z0-9]/g, '');
+    const msg = [
+      'From: Locked Room <' + user + '>', 'To: <' + to + '>',
+      'Subject: =?UTF-8?B?' + b64text(subject) + '?=',
+      'Date: ' + new Date().toUTCString(), 'Message-ID: <' + rand(12).replace(/[^A-Za-z0-9]/g, '') + '@locked-room>',
+      'MIME-Version: 1.0', 'Content-Type: multipart/alternative; boundary="' + bd + '"', '',
+      '--' + bd, 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', wrap76(b64text(text)),
+      '--' + bd, 'Content-Type: text/html; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', wrap76(b64text(html)),
+      '--' + bd + '--', '',
+    ].join('\r\n');
+    await writer.write(enc.encode(msg + '\r\n.\r\n'));
+    await cmd(null, [250]);
+    try { await writer.write(enc.encode('QUIT\r\n')); } catch {}
+    return true;
+  } finally {
+    try { await writer.close(); } catch {}
+    try { await sock.close(); } catch {}
+  }
+}
+
+// بيبعت الكود: لو GMAIL_USER + GMAIL_APP_PASSWORD موجودين بيبعت من جيميلك، وإلا بيستخدم Resend (RESEND_API_KEY)
+const mailReady = (env) => !!((env.GMAIL_USER && env.GMAIL_APP_PASSWORD) || env.RESEND_API_KEY);
+async function sendRecoveryMail(env, to, code, device, loc, connectFn) {
+  const esc = (x) => String(x || '').replace(/[<>&"]/g, '');
+  const subject = 'كود استعادة الحساب - غرفة مقفولة';
+  const html = `<div dir="rtl" style="font-family:Arial,sans-serif;max-width:420px;margin:auto;padding:16px">
+<h2>غرفة مقفولة 🔒</h2>
+<p>كود استعادة الحساب:</p>
+<p style="font-size:34px;letter-spacing:8px;font-weight:bold;direction:ltr;text-align:center;background:#f1f5f4;border-radius:12px;padding:12px">${code}</p>
+<p>صالح 10 دقايق. بعد ما تكتبه هتقدر تدخل بالباسورد، أو تمسح بيانات الحساب وتعمل باسورد جديد.</p>
+<p style="color:#666;font-size:13px">الجهاز اللي طلب الكود: ${esc(device)}${loc ? ' · ' + esc(loc) : ''}<br>لو مش أنت اللي طلبته، تجاهل الرسالة دي ولا تدّي الكود لأي حد.</p></div>`;
+  const text = `كود استعادة الحساب: ${code}\nصالح 10 دقايق. الجهاز الطالب: ${device}${loc ? ' · ' + loc : ''}\nلو مش أنت، تجاهل الرسالة.`;
+  try {
+    if (env.GMAIL_USER && env.GMAIL_APP_PASSWORD) return await smtpSend(env, to, subject, text, html, connectFn);
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + env.RESEND_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: env.MAIL_FROM || 'Locked Room <onboarding@resend.dev>', to: [to], subject, html, text }),
+    });
+    return r.ok;
+  } catch { return false; }
+}
+
 // ---------- الراوتر ----------
 export default {
   async fetch(req, env) {
@@ -259,6 +345,37 @@ async function handle(req, url, env, did) {
     return env.ROOM.get(env.ROOM.idFromName(r)).fetch(new Request(req, { headers: h })); // كل غرفة = Durable Object لوحدها
   }
 
+  // ---------- تسجيل الدخول بجوجل من تطبيق الأندرويد (من غير متصفح) ----------
+  if (path === '/auth/native/nonce' && req.method === 'GET') {
+    if (!googleReady(env)) return json(url, { e: 'config' }, 503);
+    const n = rand(24);
+    return json(url, { nonce: n, t: await signSession(env, { n, exp: Date.now() + 5 * 60000 }) });
+  }
+  if (path === '/auth/native' && req.method === 'POST') {
+    if (req.headers.get('Origin') !== url.origin) return json(url, { e: 'forbidden' }, 403);
+    if (!googleReady(env)) return json(url, { e: 'config' }, 503);
+    const b = await readBody(req);
+    if (!b || typeof b.idToken !== 'string' || typeof b.t !== 'string') return json(url, { e: 'bad' }, 400);
+    try {
+      const [tb, ts] = b.t.split('.');
+      if (!tb || !ts || !(await crypto.subtle.verify('HMAC', await hmacKey(env, 'verify'), unb64u(ts), enc.encode(tb)))) return json(url, { e: 'failed' }, 400);
+      const nn = JSON.parse(new TextDecoder().decode(unb64u(tb)));
+      if (!(nn.exp > Date.now())) return json(url, { e: 'failed' }, 400);
+      // جوجل نفسها بتتحقق من توقيع التوكن
+      const r = await fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(b.idToken));
+      if (!r.ok) return json(url, { e: 'failed' }, 400);
+      const p = await r.json();
+      const okIss = p.iss === 'https://accounts.google.com' || p.iss === 'accounts.google.com';
+      if (!okIss || p.aud !== env.GOOGLE_CLIENT_ID || p.nonce !== nn.n || !(Number(p.exp) * 1000 > Date.now()) || typeof p.sub !== 'string') return json(url, { e: 'failed' }, 400);
+      if (String(p.email_verified) !== 'true' || typeof p.email !== 'string') return json(url, { e: 'unverified' }, 400);
+      const name = typeof p.name === 'string' ? p.name.slice(0, 60) : '';
+      const access = await account(env, p.sub).beginLogin(did, deviceName(req), deviceLoc(req));
+      if (access.blocked) return json(url, { e: 'blocked' }, 403);
+      const sess = await sessionCookie(url, env, { sub: p.sub, email: p.email.slice(0, 120), name, did });
+      return json(url, { ok: true }, 200, [sess]);
+    } catch { return json(url, { e: 'failed' }, 400); }
+  }
+
   if (path === '/auth/google' && req.method === 'GET') return googleStart(url, env);
   if (path === '/auth/callback' && req.method === 'GET') return googleCallback(req, url, env, did);
 
@@ -281,7 +398,7 @@ async function handle(req, url, env, did) {
     if (!mine && st.has && st.requestStatus === 'expired') return json(url, { s: 'request-expired', ...who });
     if (!mine && st.has && st.requestStatus === 'rejected') return json(url, { s: 'blocked', ...who }, 200, [dead]);
     if (mine && st.has && st.by) return json(url, { s: s.rs ? 'reset' : 'kicked', by: st.by, ...who });
-    return json(url, { s: st.has ? 'unlock' : 'new', ...who });
+    return json(url, { s: st.has ? 'unlock' : 'new', rec: !!st.rec, ...who });
   }
 
   if (path === '/api/sessions' && req.method === 'GET') {
@@ -292,7 +409,7 @@ async function handle(req, url, env, did) {
     return json(url, { sessions: await account(env, s.sub).sessionLog() });
   }
 
-  const POSTS = ['/api/setup', '/api/login', '/api/reset', '/api/ack', '/api/notme', '/api/login-request/respond', '/api/change-password', '/api/room-password/check', '/api/room/status', '/api/room/delete', '/api/push/subscribe', '/api/push/unsubscribe', '/auth/logout'];
+  const POSTS = ['/api/setup', '/api/recover/send', '/api/recover/verify', '/api/recover/wipe', '/api/login', '/api/reset', '/api/ack', '/api/notme', '/api/login-request/respond', '/api/change-password', '/api/room-password/check', '/api/room/status', '/api/room/delete', '/api/push/subscribe', '/api/push/unsubscribe', '/auth/logout'];
   if (req.method === 'POST' && POSTS.includes(path)) {
     if (req.headers.get('Origin') !== url.origin) return json(url, { e: 'forbidden' }, 403);
     if (path === '/auth/logout') {
@@ -307,6 +424,36 @@ async function handle(req, url, env, did) {
     const mine = s.ok && s.v && s.did === did;
     const st = await acc.state(mine ? s.v : '', did);
     if (st.blocked) return json(url, { e: 'blocked' }, 403, [dead]);
+
+    // استعادة الحساب بكود على الإيميل (من شاشة "في انتظار الموافقة")
+    if (path === '/api/recover/send' || path === '/api/recover/verify' || path === '/api/recover/wipe') {
+      if (!st.has || (mine && st.ok)) return json(url, { e: 'state' }, 409);
+      const dn = deviceName(req), loc = deviceLoc(req);
+      if (path === '/api/recover/send') {
+        if (!mailReady(env)) return json(url, { e: 'mail_not_configured' }, 503);
+        const r = await acc.startRecovery(did);
+        if (r.blocked) return json(url, { e: 'blocked' }, 403, [dead]);
+        if (r.wait) return json(url, { e: 'wait', wait: r.wait }, 429);
+        if (!r.ok) return json(url, { e: 'state' }, 409);
+        if (!(await sendRecoveryMail(env, s.email, r.code, dn, loc))) return json(url, { e: 'mail_failed' }, 502);
+        return json(url, { ok: true, mail: maskEmail(s.email) });
+      }
+      if (path === '/api/recover/wipe') {
+        // مسح كل بيانات الحساب (الباسورد والأجهزة والسجل) وحظر الأجهزة التانية، بعد ما الإيميل اتأكد
+        const r = await acc.wipeAccount(did);
+        if (r.blocked) return json(url, { e: 'blocked' }, 403, [dead]);
+        if (!r.ok) return json(url, { e: 'state' }, 409);
+        return json(url, { ok: true });
+      }
+      const body = await readBody(req);
+      const code = body && typeof body.code === 'string' ? body.code.trim() : '';
+      if (!/^\d{6}$/.test(code)) return json(url, { e: 'invalid' }, 400);
+      const r = await acc.confirmRecovery(did, code);
+      if (r.blocked) return json(url, { e: 'blocked' }, 403, [dead]);
+      if (r.locked) return json(url, { e: 'locked' }, 429);
+      if (!r.ok) return json(url, { e: 'wrong', left: r.left || 0 }, 401);
+      return json(url, { ok: true });
+    }
 
     if (path === '/api/push/subscribe' || path === '/api/push/unsubscribe') {
       if (!mine || !st.ok) return json(url,{e:'session'},401);
@@ -529,10 +676,11 @@ export class Account extends DurableObject {
 
   // حالة الحساب والجهاز. طلبات الموافقة لا تكشف تفاصيلها إلا للجلسة النشطة.
   async state(v, did) {
-    const m = await this.ctx.storage.get(['pw', 'cur', 'blocked', 'requests']);
+    const m = await this.ctx.storage.get(['pw', 'cur', 'blocked', 'requests', 'recOk']);
     const rec = m.get('pw'), cur = m.get('cur'), bl = m.get('blocked') || [];
     const requests = m.get('requests') || [];
     const now = Date.now();
+    const recOk = m.get('recOk');
     const current = !!(rec && cur && v && cur.v === v && cur.d === did);
     const ownRequest = requests.find((r) => r.d === did);
     let requestStatus = ownRequest && ownRequest.status;
@@ -546,6 +694,7 @@ export class Account extends DurableObject {
       blocked: bl.some((b) => b.d === did),
       ok: current,
       requestStatus: requestStatus || '',
+      rec: !!(recOk && recOk.d === did && recOk.exp > now),
       requests: current ? requests.filter((r) => r.status === 'pending' && r.expires > now).map((r) => ({ did: r.d, n: r.n, t: r.t, l: r.l })) : [],
       by: cur && cur.d !== did ? { n: cur.n, t: cur.t, l: cur.l } : null,
     };
@@ -612,6 +761,72 @@ export class Account extends DurableObject {
       return true;
     });
   }
+  async codeHash(code, salt, did) {
+    return b64u(await crypto.subtle.digest('SHA-256', enc.encode(`${salt}:${did}:${code}:${this.env.SESSION_SECRET}`)));
+  }
+
+  // يطلب كود استعادة: كود واحد كل دقيقة، وأقصى 5 في الساعة
+  async startRecovery(did) {
+    return this.ctx.blockConcurrencyWhile(async () => {
+      const m = await this.ctx.storage.get(['pw', 'blocked', 'recLog']);
+      if (!m.get('pw')) return { ok: false, state: true };
+      if ((m.get('blocked') || []).some((b) => b.d === did)) return { ok: false, blocked: true };
+      const now = Date.now();
+      const log = (m.get('recLog') || []).filter((t) => t > now - 3600000);
+      const last = log[log.length - 1] || 0;
+      if (now - last < 60000) return { ok: false, wait: Math.ceil((60000 - (now - last)) / 1000) };
+      if (log.length >= 5) return { ok: false, wait: Math.ceil((log[0] + 3600000 - now) / 1000) };
+      const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
+      const salt = b64u(crypto.getRandomValues(new Uint8Array(12)));
+      log.push(now);
+      await this.ctx.storage.put({ rec: { d: did, s: salt, h: await this.codeHash(code, salt, did), exp: now + 10 * 60000, tries: 0 }, recLog: log });
+      return { ok: true, code };
+    });
+  }
+
+  // الكود صح: الجهاز ده بيتعتبر موافَق عليه (من غير ما يحتاج موافقة الجهاز القديم)، وبيروح لشاشة الباسورد
+  async confirmRecovery(did, code) {
+    return this.ctx.blockConcurrencyWhile(async () => {
+      const m = await this.ctx.storage.get(['rec', 'blocked', 'requests']);
+      const rec = m.get('rec'), now = Date.now();
+      if ((m.get('blocked') || []).some((b) => b.d === did)) return { blocked: true };
+      if (!rec || rec.d !== did || rec.exp <= now) return { ok: false };
+      if (rec.tries >= 5) { await this.ctx.storage.delete('rec'); return { locked: true }; }
+      if (!same(unb64u(await this.codeHash(code, rec.s, did)), unb64u(rec.h))) {
+        rec.tries++;
+        if (rec.tries >= 5) { await this.ctx.storage.delete('rec'); return { locked: true }; }
+        await this.ctx.storage.put('rec', rec);
+        return { ok: false, left: 5 - rec.tries };
+      }
+      const requests = (m.get('requests') || []).filter((r) => r.d !== did && r.expires > now);
+      requests.push({ d: did, n: 'recovery', l: '', t: now, expires: now + 30 * 60000, status: 'approved' });
+      await this.ctx.storage.put({ requests: requests.slice(-50), recOk: { d: did, exp: now + 30 * 60000 } });
+      await this.ctx.storage.delete('rec');
+      return { ok: true };
+    });
+  }
+
+  // مسح كل بيانات الحساب بعد تأكيد الإيميل. الأجهزة التانية بتتحظر عشان متقدرش تاخد الحساب الجديد
+  async wipeAccount(did) {
+    return this.ctx.blockConcurrencyWhile(async () => {
+      const m = await this.ctx.storage.get(['recOk', 'blocked', 'cur', 'requests', 'pw']);
+      const ok = m.get('recOk'), now = Date.now();
+      let bl = m.get('blocked') || [];
+      if (bl.some((b) => b.d === did)) return { blocked: true };
+      if (!m.get('pw') || !ok || ok.d !== did || ok.exp <= now) return { ok: false };
+      const cur = m.get('cur'), others = new Map();
+      if (cur && cur.d && cur.d !== did) others.set(cur.d, cur.n);
+      for (const r of (m.get('requests') || [])) if (r.d !== did) others.set(r.d, r.n);
+      for (const [d, dn] of others) { bl = bl.filter((b) => b.d !== d); bl.push({ d, n: dn, t: now }); }
+      const all = await this.ctx.storage.list();
+      const keep = new Set(['recLog']);
+      const gone = [...all.keys()].filter((k) => k !== 'blocked' && !keep.has(k));
+      for (let i = 0; i < gone.length; i += 120) await this.ctx.storage.delete(gone.slice(i, i + 120));
+      await this.ctx.storage.put('blocked', bl.slice(-MAX_BLOCKED));
+      return { ok: true };
+    });
+  }
+
   async createdAt() { return await this.ctx.storage.get('created') || 0; }
 
   async create(email, pw, did, n, l) {
