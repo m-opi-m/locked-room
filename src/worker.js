@@ -1,7 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { connect } from 'cloudflare:sockets';
 
-const PAGES = new Set(['/', '/app.js', '/style.css', '/logo.png', '/icon-192.png', '/badge-96.png', '/sw.js']);
+const PAGES = new Set(['/', '/app.js', '/style.css', '/logo.png', '/icon-192.png', '/badge-96.png', '/sw.js', '/gallery-editor.js']);
 const knockPayload = (ar) => ({ title: ar ? 'غرفة مقفولة' : 'Locked Room', body: ar ? 'هناك من يطرق الباب' : 'Someone is knocking at the door', lang: ar ? 'ar' : 'en', dir: ar ? 'rtl' : 'ltr', icon: '/icon-192.png', badge: '/badge-96.png', tag: 'locked-room-knock-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url: '/' });
 const MAX_MSG = 6 * 1024 * 1024;
 const SESSION_DAYS = 7;          // مدة بقاء المستخدم داخل بعد ما يكتب الباسورد
@@ -570,7 +570,7 @@ async function handle(req, url, env, did) {
   if (req.method !== 'GET' || !PAGES.has(path)) return new Response('Not found', { status: 404 });
   const res = await env.ASSETS.fetch(new Request(new URL(path, url)));
   const headers = secHeaders(url, res.headers.get('Content-Type') || 'text/plain');
-  if (path === '/app.js' || path === '/style.css') headers['Cache-Control'] = 'no-cache';
+  if (path === '/app.js' || path === '/style.css' || path === '/gallery-editor.js') headers['Cache-Control'] = 'no-cache';
   else if (path !== '/' && path !== '/sw.js') headers['Cache-Control'] = 'public, max-age=3600, stale-while-revalidate=86400';
   return new Response(res.body, { status: res.status, headers });
 }
