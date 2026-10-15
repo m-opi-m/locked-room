@@ -17,6 +17,7 @@
 
   const item = () => items[cur];
   const bw = (b) => b.naturalWidth || b.width, bh = (b) => b.naturalHeight || b.height;
+  const toast = (m) => { let t = $('lrToast'); if (!t) { t = document.createElement('div'); t.id = 'lrToast'; t.className = 'lrToast'; document.body.append(t); } t.textContent = m; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 4500); };
   const err = (m) => { const e = $('lrErr'); e.textContent = m || ''; e.classList.toggle('hidden', !m); if (m) setTimeout(() => { if (e.textContent === m) err(''); }, 4000); };
 
   // ---------- الرسم ----------
@@ -41,25 +42,32 @@
   const draw = () => { if (item()) render(item(), canvas); };
 
   // ---------- تحميل الصور ----------
+  function toBase(src, w, h) {
+    const s = Math.min(1, MAX_SIDE / Math.max(w, h)), base = document.createElement('canvas');
+    base.width = Math.max(1, Math.round(w * s)); base.height = Math.max(1, Math.round(h * s));
+    base.getContext('2d').drawImage(src, 0, 0, base.width, base.height); return base;
+  }
   function loadItem(f) {
     return new Promise((resolve) => {
       const url = URL.createObjectURL(f), img = new Image();
-      img.onload = () => {
-        const s = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
-        const base = document.createElement('canvas'); base.width = Math.round(img.naturalWidth * s); base.height = Math.round(img.naturalHeight * s);
-        base.getContext('2d').drawImage(img, 0, 0, base.width, base.height);
-        resolve({ base, url, rotation: 0, strokes: [], texts: [] });
+      const fallback = async () => {
+        try { const bm = await createImageBitmap(f); resolve({ base: toBase(bm, bm.width, bm.height), url, rotation: 0, strokes: [], texts: [] }); }
+        catch { URL.revokeObjectURL(url); resolve(null); }
       };
-      img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+      img.onload = () => { try { resolve({ base: toBase(img, img.naturalWidth, img.naturalHeight), url, rotation: 0, strokes: [], texts: [] }); } catch { fallback(); } };
+      img.onerror = fallback;
       img.src = url;
     });
   }
+  const looksImage = (f) => f.type.startsWith('image/') || (!f.type && /\.(jpe?g|png|gif|webp|bmp|heic|heif|avif)$/i.test(f.name || '')) || !f.type;
 
   async function open(files) {
-    const list = [...files].filter((f) => f.type.startsWith('image/'));
-    if (!list.length) return;
+    const list = [...files].filter(looksImage);
+    if (!list.length) return toast('الملف المختار مش صورة.');
+    toast('جاري تجهيز الصورة…');
     const loaded = (await Promise.all(list.map(loadItem))).filter(Boolean);
-    if (!loaded.length) return;
+    if (!loaded.length) return toast('معرفتش أفتح الصورة دي (الصيغة مش مدعومة). جرّب صورة JPG أو PNG.');
+    $('lrToast')?.classList.remove('show');
     items.forEach((x) => URL.revokeObjectURL(x.url));
     items = loaded; cur = 0; setTool(''); err('');
     $('lrCaption').value = '';
@@ -210,7 +218,7 @@
   file.addEventListener('change', (e) => {
     e.stopImmediatePropagation();
     const files = [...(file.files || [])];
-    file.value = '';
-    if (files.length) open(files);
+    if (!files.length) return;
+    open(files).catch((x) => toast('حصل خطأ: ' + (x?.message || 'مش قادر أفتح الصورة'))).finally(() => { try { file.value = ''; } catch {} });
   }, true);
 })();

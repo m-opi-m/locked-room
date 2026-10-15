@@ -251,3 +251,5 @@ textarea{-webkit-user-select:text;user-select:text;font:inherit;color:inherit}
 .lrCropBar.hidden{display:none}
 .lrTxtBtn{font-size:17px;padding:10px 18px!important;border-radius:22px!important;background:#2b2f33!important}
 .lrTxtBtn.ok{background:#00c46a!important;color:#06210f;font-weight:700}
+.lrToast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 18px);transform:translate(-50%,-20px);opacity:0;pointer-events:none;max-width:90%;z-index:10002;background:#111e;color:#fff;border:1px solid #ffffff33;border-radius:14px;padding:10px 16px;font-size:14px;text-align:center;transition:.2s}
+.lrToast.show{opacity:1;transform:translate(-50%,0)}
