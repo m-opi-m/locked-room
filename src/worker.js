@@ -1,3 +1,4 @@
+// ⚠️ أي تعديل في المشروع (هنا أو في web/ أو build.mjs) لازم يتبعه زيادة "version" في package.json — هو اللي بيظهر في الإعدادات.
 import { DurableObject } from 'cloudflare:workers';
 import { connect } from 'cloudflare:sockets';
 
