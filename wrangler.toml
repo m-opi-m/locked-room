@@ -11,6 +11,7 @@ run_worker_first = true
 [vars]
 GOOGLE_CLIENT_ID = "875994009871-vn14ekp88f8c6d4qpm5h262he70rdj2a.apps.googleusercontent.com"
 VAPID_PUBLIC_KEY = "BHG-O_OAJgQRm7llVtZqaHMXDVIF6eWcacPCY4w8YHWY4R210r_2hdTs3FYNLXjTd7y2JMsloFbz6rk7-trsBH0"
+# لو كود src/worker.js عندك بيستخدم ANDROID_PACKAGE و ANDROID_SHA256 سيبهم، النسخة اللي في الـ zip مش بتستخدمهم
 
 [[durable_objects.bindings]]
 name = "ROOM"
