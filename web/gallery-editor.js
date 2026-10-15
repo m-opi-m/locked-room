@@ -12,6 +12,8 @@
   const COLORS = ['#ffd43b', '#ff6b6b', '#4dabf7', '#69db7c', '#ffffff', '#111111'];
   const MAX_SIDE = 2400;
 
+  // true = تفتح صفحة معاينة/تعديل قبل الإرسال | false = الصورة تتبعت علطول أول ما تختارها
+  const PREVIEW_BEFORE_SEND = false;
   let items = [], cur = 0, tool = '', color = COLORS[0], hd = true, busy = false;
   let drag = null, cropRect = null;
 
@@ -212,6 +214,25 @@
   $('lrCaption').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); send(); } });
   $('lrClose').onclick = close;
 
+  // ---------- إرسال علطول (من غير معاينة) ----------
+  async function sendNow(files) {
+    const list = files.filter(looksImage);
+    if (!list.length) return toast('الملف المختار مش صورة.');
+    if (typeof window.lrSendSelectedImage !== 'function') return toast('مسار إرسال الصور غير جاهز، حدّث الصفحة.');
+    try {
+      toast(list.length > 1 ? `جاري إرسال ${list.length} صور…` : 'جاري إرسال الصورة…');
+      for (let i = 0; i < list.length; i++) {
+        let f = list[i];
+        if (!f.type) f = new File([f], f.name || 'image.jpg', { type: 'image/jpeg' }); // بعض الموبايلات بترجع نوع فاضي
+        await window.lrSendSelectedImage(f);
+        if (i < list.length - 1) await new Promise((r) => setTimeout(r, 400));
+      }
+      $('lrToast')?.classList.remove('show');
+    } catch (e) {
+      toast(e?.message || 'فشل إرسال الصورة. اتأكد إنك متصل بالغرفة وجرب تاني.');
+    }
+  }
+
   // ---------- فتح المحرر بعد اختيار الصور ----------
   // listener في الـ capture + stopImmediatePropagation عشان معالج app.js القديم (اللي بيبعت الصورة علطول) ما يشتغلش.
   file.onchange = null;
@@ -219,6 +240,7 @@
     e.stopImmediatePropagation();
     const files = [...(file.files || [])];
     if (!files.length) return;
+    if (!PREVIEW_BEFORE_SEND) { sendNow(files).finally(() => { try { file.value = ''; } catch {} }); return; }
     open(files).catch((x) => toast('حصل خطأ: ' + (x?.message || 'مش قادر أفتح الصورة'))).finally(() => { try { file.value = ''; } catch {} });
   }, true);
 })();
