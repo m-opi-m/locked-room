@@ -51,16 +51,45 @@ async function pick(page, hideMs) {
   }
   await chooser.setFiles('/tmp/t.png');
 }
-// 1) عادي
-await pick(A, 0); await B.waitForFunction((n) => document.querySelectorAll('#log img').length > n, before, { timeout: 15000 }).catch(() => {});
-ok('عادي: B استلم الصورة', (await imgsB()) === before + 1);
-// 2) إخفاء 7 ثواني أثناء المعرض
-await pick(A, 7000); await B.waitForFunction((n) => document.querySelectorAll('#log img').length > n, before + 1, { timeout: 20000 }).catch(() => {});
-ok('إخفاء 7ث: B استلم الصورة', (await imgsB()) === before + 2);
-ok('A لسه في الشات (مش شاشة قفل)', await A.locator('#chat').isVisible());
-// 3) السوكيت اتقطع
-await A.evaluate(() => { window.__ws = []; });
+// 1) معاينة -> قص -> تدوير -> شرح -> إرسال
 await pick(A, 0);
+await A.waitForSelector('.lrp:not(.hidden)', { timeout: 8000 }).catch(() => {});
+ok('صفحة المعاينة ظهرت', await A.locator('.lrp:not(.hidden) #lrpCv').isVisible());
+ok('زر القص فوق ظاهر', await A.locator('#lrpCrop').isVisible());
+const w0 = await A.evaluate(() => document.getElementById('lrpCv').width);
+await A.click('#lrpCrop');
+ok('وضع القص ظهر (تم/إلغاء/تدوير)', await A.locator('#lrpCDone').isVisible() && await A.locator('#lrpCCancel').isVisible() && await A.locator('#lrpRot').isVisible());
+await A.waitForTimeout(300);
+const bb = await A.locator('#lrpBox').boundingBox();
+// اسحب مقبض الجنب الأيمن لجوه (يصغّر العرض للنص تقريباً)
+await A.mouse.move(bb.x + bb.width - 6, bb.y + bb.height / 2); await A.mouse.down();
+await A.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2, { steps: 8 }); await A.mouse.up();
+const bb2 = await A.locator('#lrpBox').boundingBox();
+ok('القص اتحرك (الصندوق صغر)', bb2.width < bb.width - 20);
+await A.click('#lrpCDone');
+ok('رجع للمعاينة بعد تم', !(await A.locator('#lrpCropUI').isVisible()) && await A.locator('#lrpCv').isVisible());
+const w1 = await A.evaluate(() => document.getElementById('lrpCv').width);
+ok('الصورة اتقصّت فعلاً (' + w0 + ' -> ' + w1 + ')', w1 < w0);
+await A.fill('#lrpCaption', 'شرح تجريبي ' + stamp);
+await A.click('#lrpSend');
+await B.waitForFunction((n) => document.querySelectorAll('#log img').length > n, before, { timeout: 20000 }).catch(() => {});
+ok('B استلم الصورة', (await imgsB()) === before + 1);
+await B.waitForFunction((t) => document.getElementById('log').innerText.includes(t), 'شرح تجريبي ' + stamp, { timeout: 10000 }).catch(() => {});
+ok('B استلم الشرح', (await B.locator('#log').innerText()).includes('شرح تجريبي ' + stamp));
+ok('المعاينة اتقفلت بعد الإرسال', !(await A.locator('.lrp:not(.hidden)').count()));
+// 2) تدوير + إلغاء + إغلاق من غير إرسال
+await pick(A, 0); await A.waitForSelector('.lrp:not(.hidden)');
+await A.click('#lrpCrop'); await A.click('#lrpRot'); await A.click('#lrpCCancel');
+ok('إلغاء القص يرجع للمعاينة', await A.locator('#lrpCv').isVisible());
+await A.click('#lrpClose');
+await A.waitForTimeout(1500);
+ok('الإغلاق ما بعتش حاجة', (await imgsB()) === before + 1);
+// 2b) إخفاء 7 ثواني أثناء المعرض ثم معاينة وإرسال
+await pick(A, 7000); await A.waitForSelector('.lrp:not(.hidden)', { timeout: 8000 }).catch(() => {});
+ok('إخفاء 7ث: المعاينة ظهرت والشات لسه مفتوح', await A.locator('.lrp:not(.hidden)').count() === 1);
+await A.click('#lrpSend');
+await B.waitForFunction((n) => document.querySelectorAll('#log img').length > n, before + 1, { timeout: 20000 }).catch(() => {});
+ok('إخفاء 7ث: B استلم الصورة', (await imgsB()) === before + 2);
 // 4) من غير معرض: القفل الأمني لسه شغال
 await A.evaluate(() => { Object.defineProperty(document, 'hidden', { get: () => true, configurable: true }); document.dispatchEvent(new Event('visibilitychange')); });
 await A.waitForTimeout(7000);
