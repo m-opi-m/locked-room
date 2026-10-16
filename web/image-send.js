@@ -1,4 +1,4 @@
-// إرسال الصور من المعرض — مكتوب من الصفر (1.1.0) + صفحة معاينة وقص وشرح (1.2.0).
+// إرسال الصور من المعرض — مكتوب من الصفر (1.1.0) + صفحة معاينة وقص وشرح (1.2.0) + صور متعددة حتى 10 (1.4.0).
 // بيتضم جوه app.js وقت الـ build. بيعتمد على الجسور اللي في app.js:
 //   window.lrSendSelectedImage(File)  window.lrReconnect()  window.lrPickAt
 // المبدأ: ما نفترضش إن حاجة اشتغلت. كل مرحلة ليها رسالة ظاهرة فوق الشاشة (مش جوه الشات)،
@@ -9,7 +9,7 @@
   const attachBtn = $('attach');
   if (!attachBtn) return;
 
-  const MAX_SIDE = 1600, QUALITY = 0.85;
+  const MAX_SIDE = 1600, QUALITY = 0.85, MAX_IMG = 10;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ---------- رسالة ظاهرة فوق (مستقلة عن #log) ----------
@@ -25,18 +25,21 @@
   // ---------- input جديد مخصوص للصور (مش #file القديم) ----------
   // مش display:none: بعض الـ WebViews بتتجاهل click() على العناصر المخفية بالكامل.
   const input = document.createElement('input');
-  input.type = 'file'; input.accept = 'image/*'; input.id = 'imgPick';
+  input.type = 'file'; input.accept = 'image/*'; input.multiple = true; input.id = 'imgPick';
   input.setAttribute('aria-hidden', 'true'); input.tabIndex = -1;
   input.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none';
   document.body.append(input);
 
-  attachBtn.onclick = () => {
-    $('attachMenu')?.classList.add('hidden');
-    $('attachMenuBtn')?.setAttribute('aria-expanded', 'false');
+  function openPicker() {
     window.lrPickAt = Date.now(); // يمنع القفل التلقائي لحد دقيقتين أثناء المعرض
     step('open-picker');
     try { input.value = ''; } catch {}
     input.click();
+  }
+  attachBtn.onclick = () => {
+    $('attachMenu')?.classList.add('hidden');
+    $('attachMenuBtn')?.setAttribute('aria-expanded', 'false');
+    openPicker();
   };
 
   // ---------- أدوات ----------
@@ -58,7 +61,7 @@
       return { src: img, w: img.naturalWidth, h: img.naturalHeight };
     } finally { setTimeout(() => URL.revokeObjectURL(url), 5000); }
   }
-  const MAX_WORK = 2400;
+  const MAX_WORK = 1800; // أقل من 2400 عشان 10 صور مع بعض ما يستهلكوش ذاكرة الموبايل
   async function toCanvas(blob) { // بنفك الصورة لـ canvas شغّال (أقصى ضلع 2400)
     const d = await decode(blob);
     if (!d.w || !d.h) throw Error('الصورة فاضية');
@@ -107,7 +110,7 @@
 
   // ---------- إرسال ملف جاهز (JPEG) مع محاولات ----------
   async function sendPrepared(file, ui, caption) {
-    ui.cancelled = false; ui.sending();
+    if (ui.cancelled) return false; ui.sending();
     let lastErr;
     for (let attempt = 1; attempt <= 3; attempt++) {
       if (ui.cancelled) return false;
@@ -127,50 +130,73 @@
     return false;
   }
 
-  // ---------- استقبال الاختيار ----------
+  // ---------- استقبال الاختيار (صورة أو أكتر، الحد 10) ----------
   const seen = new WeakSet();
+  const hideSay = () => { clearTimeout(bannerT); banner?.classList.remove('show'); };
   async function onPicked() {
-    const f = input.files && input.files[0];
+    const files = Array.from(input.files || []);
     window.lrPickAt = 0;
-    step('picked', f ? `${f.name}|${f.type}|${f.size}` : 'none');
-    if (!f || seen.has(f)) return;
-    seen.add(f);
-    say('⏳ جاري تجهيز الصورة…', 0);
-    let work;
-    try {
-      // نقرأ البايتات فوراً: على أندرويد الـ URI ممكن يبوظ لو اتأخرنا بعد رجوع التطبيق.
-      const buf = await f.arrayBuffer();
-      step('read', buf.byteLength);
-      if (!buf.byteLength) throw Error('الصورة فاضية أو مش مسموح بقراءتها');
-      const type = f.type && f.type.startsWith('image/') ? f.type : sniffType(buf);
-      if (!type) throw Error('الملف ده مش صورة');
-      work = await toCanvas(new Blob([buf], { type }));
-      step('canvas', work.width + 'x' + work.height);
-    } catch (e) {
-      step('prep-fail', e?.message);
-      say('❌ ' + (e?.message || 'معرفتش أقرأ الصورة') + (/heic|heif/i.test(f.type) ? ' (HEIC مش مدعوم هنا)' : ''), 6000);
-      try { input.value = ''; } catch {}
-      return;
+    step('picked', files.length + ':' + files.map((f) => `${f.name}|${f.type}|${f.size}`).join(';'));
+    const fresh = files.filter((f) => !seen.has(f));
+    if (!fresh.length) return;
+    fresh.forEach((f) => seen.add(f));
+    try { input.value = ''; } catch {} // الـ File objects فاضلة صالحة بعد التصفير
+    const room = Math.max(0, MAX_IMG - items.length);
+    const take = fresh.slice(0, room);
+    const limitMsg = fresh.length > take.length ? `الحد الأقصى ${MAX_IMG} صور في المرة — اتاخدت أول ${take.length} بس` : '';
+    if (!take.length) return;
+    say('⏳ جاري تجهيز ' + (take.length > 1 ? take.length + ' صور…' : 'الصورة…'), 0);
+    // نقرأ كل البايتات فوراً: على أندرويد الـ URI ممكن يبوظ لو اتأخرنا بعد رجوع التطبيق.
+    const bufs = await Promise.all(take.map((f) => f.arrayBuffer().catch(() => null)));
+    const added = []; let bad = 0, lastErr = '';
+    for (let i = 0; i < take.length; i++) {
+      const f = take[i], buf = bufs[i]; bufs[i] = null;
+      try {
+        step('read', buf ? buf.byteLength : 0);
+        if (!buf || !buf.byteLength) throw Error('الصورة فاضية أو مش مسموح بقراءتها');
+        const type = f.type && f.type.startsWith('image/') ? f.type : sniffType(buf);
+        if (!type) throw Error('الملف ده مش صورة');
+        const cv = await toCanvas(new Blob([buf], { type }));
+        step('canvas', cv.width + 'x' + cv.height);
+        added.push({ cv, cap: '', thumb: mkThumb(cv) });
+      } catch (e) {
+        bad++; lastErr = (e?.message || 'معرفتش أقرأ الصورة') + (/heic|heif/i.test(f.type) ? ' (HEIC مش مدعوم هنا)' : '');
+        step('prep-fail', e?.message);
+      }
     }
-    try { input.value = ''; } catch {}
-    if (!chatOpen()) { say('🔒 الشات اتقفل. ادخل الباسورد وارجع ابعت الصورة تاني.', 7000); step('chat-closed'); return; }
-    say('', 1); banner?.classList.remove('show');
-    openPreview(work);
+    if (!added.length) { say('❌ ' + lastErr, 6000); return; }
+    if (!chatOpen()) { say('🔒 الشات اتقفل. ادخل الباسورد وارجع ابعت الصور تاني.', 7000); step('chat-closed'); return; }
+    const warn = [limitMsg, bad ? `⚠️ ${bad} من الصور ما اتقرتش (${lastErr})` : ''].filter(Boolean).join(' — ');
+    if (warn) say(warn, 6000); else hideSay();
+    const first = items.length;
+    items.push(...added);
+    openPreview(first);
   }
-  // الإرسال الفعلي (بعد المعاينة): الصورة + الشرح لو اتكتب
-  async function sendFinal(cv, caption) {
-    let prepared;
-    try { prepared = await canvasToJpeg(cv); } catch (e) { say('❌ ' + (e?.message || 'تعذر تجهيز الصورة'), 6000); return; }
-    if (!chatOpen()) { say('🔒 الشات اتقفل. ادخل الباسورد وارجع ابعت الصورة تاني.', 7000); return; }
-    const previewUrl = URL.createObjectURL(prepared);
-    const ui = bubble(previewUrl, () => sendPrepared(prepared, ui, caption), caption);
-    const ok = await sendPrepared(prepared, ui, caption); // الشرح بيتبعت جوه نفس رسالة الصورة
-    if (ok) setTimeout(() => URL.revokeObjectURL(previewUrl), 3000);
+  // الإرسال الفعلي بالترتيب (بعد المعاينة): كل صورة بفقاعتها وشرحها. فقاعة واحدة في الوقت عشان ترتيب الشات يفضل صح.
+  async function sendAll(list) {
+    if (!chatOpen()) { say('🔒 الشات اتقفل. ادخل الباسورد وارجع ابعت الصور تاني.', 7000); return; }
+    let stopped = false;
+    for (let i = 0; i < list.length; i++) {
+      const caption = (list[i].cap || '').trim();
+      let prepared;
+      try { prepared = await canvasToJpeg(list[i].cv); } catch (e) { say('❌ ' + (e?.message || 'تعذر تجهيز الصورة'), 6000); continue; }
+      if (!chatOpen()) { say('🔒 الشات اتقفل. ادخل الباسورد وارجع ابعت الباقي.', 7000); return; }
+      const previewUrl = URL.createObjectURL(prepared);
+      const ui = bubble(previewUrl, () => sendPrepared(prepared, ui, caption), caption);
+      if (stopped) { ui.fail(); continue; } // الاتصال فشل قبل كده: الباقي يستنى \"إعادة المحاولة\" من غير ما نضيّع وقت
+      if (list.length > 1) say(`⏳ جاري إرسال ${i + 1} من ${list.length}`, 0);
+      const ok = await sendPrepared(prepared, ui, caption); // الشرح بيتبعت جوه نفس رسالة الصورة
+      if (ok) setTimeout(() => URL.revokeObjectURL(previewUrl), 3000);
+      else if (!ui.cancelled) stopped = true;
+    }
+    if (list.length > 1) { if (stopped) say('⚠️ الإرسال وقف — اضغط \"إعادة المحاولة\" على الصور اللي ما اتبعتتش', 7000); else hideSay(); }
   }
   // ================= صفحة المعاينة + القص =================
   const ICON_CROP = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>';
   const ICON_ROT = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>';
   const ICON_SEND = '<svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M2.5 12 21 3.5 17 12l4 8.5z"/></svg>';
+  const ICON_TRASH = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>';
+  const ICON_PLUS = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
   const ICON_X = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 5l14 14M19 5 5 19"/></svg>';
 
   const ov = document.createElement('div');
@@ -179,8 +205,8 @@
     '<div class="lrpTop"><button type="button" id="lrpClose" aria-label="إغلاق">' + ICON_X + '</button><span class="lrpGrow"></span>' +
     '<button type="button" id="lrpCrop" aria-label="قص">' + ICON_CROP + '</button></div>' +
     '<div class="lrpStage"><canvas id="lrpCv"></canvas></div>' +
-    '<div class="lrpBottom"><input id="lrpCaption" type="text" maxlength="1000" autocomplete="off" placeholder="إضافة شرح توضيحي...">' +
-    '<div class="lrpRow"><button type="button" id="lrpSend" class="lrpSend" aria-label="إرسال">' + ICON_SEND + '</button></div></div>' +
+    '<div class="lrpBottom"><div class="lrpStrip" id="lrpStrip"></div><input id="lrpCaption" type="text" maxlength="1000" autocomplete="off" placeholder="إضافة شرح توضيحي...">' +
+    '<div class="lrpRow"><button type="button" id="lrpSend" class="lrpSend" aria-label="إرسال">' + ICON_SEND + '<span class="lrpBadge hidden" id="lrpBadge"></span></button></div></div>' +
     '<div class="lrpCrop hidden" id="lrpCropUI"><div class="lrpCropStage"><div class="lrpWrap" id="lrpWrap"><canvas id="lrpCropCv"></canvas>' +
     '<div class="lrpBox" id="lrpBox"><i class="g1"></i><i class="g2"></i><i class="g3"></i><i class="g4"></i>' +
     '<b class="c tl"></b><b class="c tr"></b><b class="c bl"></b><b class="c br"></b><b class="c tm"></b><b class="c bm"></b><b class="c ml"></b><b class="c mr"></b></div></div></div>' +
@@ -188,52 +214,89 @@
   document.body.append(ov);
   const q = (id) => ov.querySelector('#' + id);
   const pv = q('lrpCv'), cropUI = q('lrpCropUI'), cropCv = q('lrpCropCv'), wrap = q('lrpWrap'), box = q('lrpBox');
-  const cap = q('lrpCaption'), sendBtn = q('lrpSend');
-  let cur = null, sending = false, cr = { x: 0, y: 0, w: 0, h: 0 }, dw = 0, dh = 0;
+  const cap = q('lrpCaption'), sendBtn = q('lrpSend'), strip = q('lrpStrip'), badge = q('lrpBadge');
+  let items = [], idx = 0, sending = false, cr = { x: 0, y: 0, w: 0, h: 0 }, dw = 0, dh = 0;
+  const cur = () => items[idx] && items[idx].cv;
 
-  function paint(cv, src) { cv.width = src.width; cv.height = src.height; cv.getContext('2d').drawImage(src, 0, 0); }
-  function openPreview(c) {
-    cur = c; sending = false; sendBtn.disabled = false; cap.value = '';
-    paint(pv, cur); cropUI.classList.add('hidden'); ov.classList.remove('hidden'); step('preview-open');
+  function mkThumb(cv) { // مصغّرة مربعة (قص من المنتصف)
+    const t = document.createElement('canvas'), S = 112; t.width = S; t.height = S;
+    const s = Math.min(cv.width, cv.height), sx = (cv.width - s) / 2, sy = (cv.height - s) / 2;
+    t.getContext('2d').drawImage(cv, sx, sy, s, s, 0, 0, S, S);
+    return t;
   }
-  function closePreview() { ov.classList.add('hidden'); cropUI.classList.add('hidden'); cur = null; cap.value = ''; try { cap.blur(); } catch {} }
+  function paint(cv, src) { cv.width = src.width; cv.height = src.height; cv.getContext('2d').drawImage(src, 0, 0); }
+  function renderStrip() {
+    strip.textContent = '';
+    items.forEach((it, i) => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'lrpTh' + (i === idx ? ' sel' : '');
+      b.setAttribute('aria-label', i === idx ? 'حذف الصورة' : 'صورة ' + (i + 1));
+      b.append(it.thumb);
+      if (i === idx) { const t = document.createElement('span'); t.className = 'lrpTrash'; t.innerHTML = ICON_TRASH; b.append(t); }
+      b.onclick = () => { if (i === idx) removeAt(i); else select(i); };
+      strip.append(b);
+    });
+    if (items.length < MAX_IMG) {
+      const a = document.createElement('button'); a.type = 'button'; a.className = 'lrpTh lrpAdd'; a.setAttribute('aria-label', 'إضافة صور'); a.innerHTML = ICON_PLUS;
+      a.onclick = () => { openPicker(); }; strip.append(a);
+    }
+    badge.textContent = items.length; badge.classList.toggle('hidden', items.length < 2);
+    const s = strip.querySelector('.sel'); if (s) s.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+  function select(i) {
+    idx = Math.max(0, Math.min(i, items.length - 1));
+    paint(pv, cur()); cap.value = items[idx].cap || ''; renderStrip();
+  }
+  function removeAt(i) {
+    items.splice(i, 1); step('removed', i);
+    if (!items.length) { closePreview(); return; }
+    select(Math.min(i, items.length - 1));
+  }
+  function openPreview(sel) {
+    sending = false; sendBtn.disabled = false;
+    cropUI.classList.add('hidden'); ov.classList.remove('hidden'); step('preview-open', items.length);
+    select(sel == null ? 0 : sel);
+  }
+  function closePreview() { ov.classList.add('hidden'); cropUI.classList.add('hidden'); items = []; idx = 0; cap.value = ''; strip.textContent = ''; try { cap.blur(); } catch {} }
   q('lrpClose').onclick = closePreview;
   // أمان: لو الشات اتقفل (قفل تلقائي) المعاينة تتشال فوراً ومتفضلش فوق شاشة القفل
   setInterval(() => { if (!ov.classList.contains('hidden') && !chatOpen()) { closePreview(); say('🔒 الشات اتقفل.', 4000); } }, 500);
 
+  cap.addEventListener('input', () => { if (items[idx]) items[idx].cap = cap.value; }); // شرح خاص بكل صورة
   sendBtn.onclick = async () => {
-    if (sending || !cur) return;
+    if (sending || !items.length) return;
+    if (items[idx]) items[idx].cap = cap.value;
     sending = true; sendBtn.disabled = true;
-    const c = cur, caption = cap.value.trim();
+    const list = items.slice();
     closePreview();
-    await sendFinal(c, caption);
+    await sendAll(list);
   };
   cap.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendBtn.click(); } });
 
   // ---- وضع القص ----
   const MIN = 48;
+  function setCv(n) { items[idx].cv = n; items[idx].thumb = mkThumb(n); renderStrip(); }
   const applyBox = () => { box.style.left = cr.x + 'px'; box.style.top = cr.y + 'px'; box.style.width = cr.w + 'px'; box.style.height = cr.h + 'px'; };
   function startCrop() {
-    paint(cropCv, cur); cropUI.classList.remove('hidden');
+    if (!cur()) return; paint(cropCv, cur()); cropUI.classList.remove('hidden');
     requestAnimationFrame(() => {
       const r = cropCv.getBoundingClientRect(); dw = r.width; dh = r.height;
       cr = { x: 0, y: 0, w: dw, h: dh }; applyBox();
     });
   }
-  q('lrpCrop').onclick = () => { if (cur) startCrop(); };
+  q('lrpCrop').onclick = () => { if (cur()) startCrop(); };
   q('lrpCCancel').onclick = () => cropUI.classList.add('hidden');
   q('lrpRot').onclick = () => {
-    const n = document.createElement('canvas'); n.width = cur.height; n.height = cur.width;
-    const c = n.getContext('2d'); c.translate(n.width / 2, n.height / 2); c.rotate(Math.PI / 2); c.drawImage(cur, -cur.width / 2, -cur.height / 2);
-    cur = n; startCrop();
+    const o = cur(), n = document.createElement('canvas'); n.width = o.height; n.height = o.width;
+    const c = n.getContext('2d'); c.translate(n.width / 2, n.height / 2); c.rotate(Math.PI / 2); c.drawImage(o, -o.width / 2, -o.height / 2);
+    setCv(n); startCrop();
   };
   q('lrpCDone').onclick = () => {
-    const sx = cur.width / dw, sy = cur.height / dh;
+    const o = cur(), sx = o.width / dw, sy = o.height / dh;
     const x = Math.max(0, Math.round(cr.x * sx)), y = Math.max(0, Math.round(cr.y * sy));
-    const w = Math.max(1, Math.min(cur.width - x, Math.round(cr.w * sx))), h = Math.max(1, Math.min(cur.height - y, Math.round(cr.h * sy)));
+    const w = Math.max(1, Math.min(o.width - x, Math.round(cr.w * sx))), h = Math.max(1, Math.min(o.height - y, Math.round(cr.h * sy)));
     const n = document.createElement('canvas'); n.width = w; n.height = h;
-    n.getContext('2d').drawImage(cur, x, y, w, h, 0, 0, w, h);
-    cur = n; paint(pv, cur); cropUI.classList.add('hidden'); step('cropped', w + 'x' + h);
+    n.getContext('2d').drawImage(o, x, y, w, h, 0, 0, w, h);
+    setCv(n); paint(pv, n); cropUI.classList.add('hidden'); step('cropped', w + 'x' + h);
   };
   // سحب المقابض/الصندوق (pointer events: يشتغل بالإصبع والماوس)
   let drag = null;
