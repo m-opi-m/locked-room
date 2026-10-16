@@ -79,37 +79,50 @@
 
   // ---------- فقاعة الصورة في الشات (دايرة تحميل / ⟳ للإعادة) ----------
   function bubble(previewUrl, retry) {
-    const log = $('log'); if (!log) return { ok() {}, fail() {} };
+    const log = $('log'); if (!log) return { sending() {}, fail() {}, ok() {}, cancelled: false };
     const m = document.createElement('div'); m.className = 'm me lrPending';
     const wrap = document.createElement('div'); wrap.className = 'lrPendWrap';
     const im = document.createElement('img'); im.alt = 'صورة'; im.src = previewUrl; im.draggable = false;
     const ov = document.createElement('button'); ov.type = 'button'; ov.className = 'lrPendOv';
-    const note = document.createElement('small'); note.className = 'lrPendNote';
-    wrap.append(im, ov); m.append(wrap, note);
-    const state = (s, msg) => {
-      m.dataset.state = s; ov.disabled = s === 'sending';
-      ov.innerHTML = s === 'sending' ? '<span class="lrSpin2"></span>' : '<span class="lrRetry">⟳</span>';
-      note.textContent = s === 'sending' ? 'جاري الإرسال…' : (msg ? msg + ' — ' : '') + 'اضغط على الصورة لإعادة المحاولة';
+    wrap.append(im, ov); m.append(wrap);
+    const ui = { cancelled: false };
+    const state = (s) => {
+      m.dataset.state = s;
+      // جاري الإرسال: دايرة بتلف وجواها X (اضغط لإلغاء الإرسال) — فشل: زر "إعادة المحاولة"
+      ov.innerHTML = s === 'sending'
+        ? '<span class="lrCancel"><span class="lrSpin2"></span><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></span>'
+        : '<span class="lrRetryPill">إعادة المحاولة <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg></span>';
     };
-    ov.onclick = (e) => { e.stopPropagation(); if (m.dataset.state === 'failed') retry(); };
+    ov.onclick = (e) => {
+      e.stopPropagation();
+      if (m.dataset.state === 'sending') { ui.cancelled = true; m.remove(); URL.revokeObjectURL(previewUrl); step('cancelled'); say('اتلغى الإرسال', 1800); }
+      else if (m.dataset.state === 'failed') retry();
+    };
     log.append(m); log.scrollTop = log.scrollHeight; im.onload = () => { log.scrollTop = log.scrollHeight; };
     state('sending');
-    return { sending: () => state('sending'), fail: (msg) => state('failed', msg), ok: () => m.remove(), el: m };
+    ui.sending = () => state('sending'); ui.fail = () => state('failed'); ui.ok = () => m.remove();
+    return ui;
   }
 
   // ---------- إرسال ملف جاهز (JPEG) مع محاولات ----------
   async function sendPrepared(file, ui) {
-    ui.sending();
+    ui.cancelled = false; ui.sending();
     let lastErr;
     for (let attempt = 1; attempt <= 3; attempt++) {
+      if (ui.cancelled) return false;
       try {
         step('send', attempt);
-        await window.lrSendSelectedImage(file);
+        await window.lrSendSelectedImage(file, () => ui.cancelled);
+        if (ui.cancelled) return false;
         step('sent'); ui.ok(); return true;
-      } catch (e) { lastErr = e; step('send-fail', e?.message); await sleep(700); }
+      } catch (e) {
+        if (ui.cancelled || e?.message === 'cancelled') return false;
+        lastErr = e; step('send-fail', e?.message); await sleep(700);
+      }
     }
-    ui.fail(lastErr?.message || 'فشل الإرسال');
-    say('❌ ' + (lastErr?.message || 'فشل الإرسال') + ' — اضغط على الصورة في الشات لإعادة المحاولة', 6000);
+    if (ui.cancelled) return false;
+    ui.fail();
+    say('❌ ' + (lastErr?.message || 'فشل الإرسال') + ' — اضغط "إعادة المحاولة" على الصورة', 6000);
     return false;
   }
 
