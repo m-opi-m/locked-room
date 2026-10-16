@@ -1,6 +1,6 @@
 {
   "name": "locked-room",
-  "version": "1.4.5",
+  "version": "1.5.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,7 +8,8 @@
     "dev": "npm run build && wrangler dev",
     "deploy": "node check-version.mjs --strict && node build.mjs && wrangler deploy && node check-version.mjs --stamp",
     "check": "node check-version.mjs --strict",
-    "test": "node test-devices.mjs"
+    "test": "node test-devices.mjs",
+    "test:fcm": "node tests/fcm.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.12",
