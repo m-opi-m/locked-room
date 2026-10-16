@@ -1,6 +1,8 @@
 // ⚠️ أي تعديل في المشروع (هنا أو في web/ أو build.mjs) لازم يتبعه زيادة "version" في package.json — هو اللي بيظهر في الإعدادات.
 import { DurableObject } from 'cloudflare:workers';
 import { connect } from 'cloudflare:sockets';
+import { APP_VERSION } from './version.js';
+import { peerOf, semverGt, updatePayload } from './push-util.js';
 
 const PAGES = new Set(['/', '/app.js', '/style.css', '/logo.png', '/icon-192.png', '/badge-96.png', '/sw.js', '/gallery-editor.js']);
 const knockPayload = (ar) => ({ title: ar ? 'غرفة مقفولة' : 'Locked Room', body: ar ? 'هناك من يطرق الباب' : 'Someone is knocking at the door', lang: ar ? 'ar' : 'en', dir: ar ? 'rtl' : 'ltr', icon: '/icon-192.png', badge: '/badge-96.png', tag: 'locked-room-knock-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url: '/' });
@@ -46,7 +48,7 @@ async function webPushPayload(env, subscription, payload) {
   const ua=await crypto.subtle.importKey('raw',receiver,{name:'ECDH',namedCurve:'P-256'},false,[]), shared=new Uint8Array(await crypto.subtle.deriveBits({name:'ECDH',public:ua},pair.privateKey,256));
   const prkKey=await hmacBytes(auth,shared), ikm=await hkdfExpand(prkKey,concatBytes(enc.encode('WebPush: info\0'),receiver,sender),32), salt=crypto.getRandomValues(new Uint8Array(16)), prk=await hmacBytes(salt,ikm);
   const cek=await hkdfExpand(prk,enc.encode('Content-Encoding: aes128gcm\0'),16), nonce=await hkdfExpand(prk,enc.encode('Content-Encoding: nonce\0'),12);
-  const plain=concatBytes(new Uint8Array([2]),enc.encode(JSON.stringify(payload))), aes=await crypto.subtle.importKey('raw',cek,{name:'AES-GCM'},false,['encrypt']), encrypted=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv:nonce,tagLength:128},aes,plain));
+  const plain=concatBytes(enc.encode(JSON.stringify(payload)),new Uint8Array([2])), aes=await crypto.subtle.importKey('raw',cek,{name:'AES-GCM'},false,['encrypt']), encrypted=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv:nonce,tagLength:128},aes,plain));
   const head=new Uint8Array(5);new DataView(head.buffer).setUint32(0,4096);head[4]=sender.length;
   const body=concatBytes(salt,head,sender,encrypted);
   const pub=publicKey, jwk={kty:'EC',crv:'P-256',x:b64u(pub.slice(1,33)),y:b64u(pub.slice(33,65)),d:env.VAPID_PRIVATE_KEY,ext:true,key_ops:['sign']};
@@ -311,9 +313,24 @@ async function sendRecoveryMail(env, to, code, device, loc, connectFn) {
 }
 
 // ---------- الراوتر ----------
+// أول طلب بعد أي نشر بإصدار جديد بيبعت إشعار "فيه تحديث" لكل الحسابات اللي مفعّلة الإشعارات.
+async function announceUpdate(env) {
+  try {
+    const reg = env.ROOM_PASSWORDS.get(env.ROOM_PASSWORDS.idFromName('global'));
+    const subs = await reg.versionCheck(APP_VERSION);
+    if (!subs || !subs.length) return;
+    for (let i = 0; i < subs.length; i += 10) {
+      await Promise.all(subs.slice(i, i + 10).map(async (sub) => {
+        try { if ((await account(env, sub).pushUpdate(APP_VERSION)) === 'none') await reg.removePushAccount(sub); } catch (e) { console.log('update push error', String(e)); }
+      }));
+    }
+  } catch (e) { console.log('announceUpdate failed', String(e)); }
+}
+
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
+    if (globalThis.__lrAnnounced !== APP_VERSION) { globalThis.__lrAnnounced = APP_VERSION; ctx.waitUntil(announceUpdate(env)); }
     // معرّف الجهاز: كوكي عشوائي طويل المدى بيتعمل أول زيارة
     let did = getCookie(req, url, 'did'), fresh = '';
     if (!validDid(did)) { did = rand(24); fresh = setCookie(url, 'did', did, DEV_COOKIE_AGE); }
@@ -464,9 +481,10 @@ async function handle(req, url, env, did) {
       if (!sub || typeof sub.endpoint!=='string' || sub.endpoint.length>2048 || typeof sub.keys?.p256dh!=='string' || typeof sub.keys?.auth!=='string') return json(url,{e:'invalid'},400);
       let endpoint; try { endpoint=new URL(sub.endpoint); } catch { return json(url,{e:'invalid'},400); }
       if(endpoint.protocol!=='https:' || endpoint.username || endpoint.password || /^(localhost|127\.|10\.|192\.168\.|169\.254\.|\[::1\])/.test(endpoint.hostname)) return json(url,{e:'invalid'},400);
-      const pushHost=endpoint.hostname==='fcm.googleapis.com'||endpoint.hostname==='web.push.apple.com'||endpoint.hostname==='updates.push.services.mozilla.com'||endpoint.hostname.endsWith('.push.services.mozilla.com');
+      const pushHost=endpoint.hostname==='fcm.googleapis.com'||endpoint.hostname==='web.push.apple.com'||endpoint.hostname==='updates.push.services.mozilla.com'||endpoint.hostname.endsWith('.push.services.mozilla.com')||endpoint.hostname.endsWith('.notify.windows.com');
       if(endpoint.protocol!=='https:' || endpoint.username || endpoint.password || !pushHost || sub.keys.p256dh.length>256 || sub.keys.auth.length>128) return json(url,{e:'invalid'},400);
       await acc.savePush(did,{endpoint:endpoint.href,keys:{p256dh:sub.keys.p256dh,auth:sub.keys.auth},origin:url.origin,language:typeof body.language==='string'&&/^[A-Za-z-]{2,32}$/.test(body.language)?body.language:'en'});
+      try { await env.ROOM_PASSWORDS.get(env.ROOM_PASSWORDS.idFromName('global')).addPushAccount(s.sub); } catch {}
       return json(url,{ok:true});
     }
     if (path === '/api/room/status') {
@@ -644,25 +662,35 @@ export class Account extends DurableObject {
   async savePush(did, subscription) { await this.ctx.storage.put('push:' + did, subscription); return true; }
   async removePush(did) { await this.ctx.storage.delete('push:' + did); return true; }
   async queueNotice(did, language) {
-    const notice=await this.ctx.blockConcurrencyWhile(async () => {
+    await this.ctx.blockConcurrencyWhile(async () => {
       const now = Date.now(), notices = (await this.ctx.storage.get('notices') || []).filter((x) => x.created > now - 86400000);
       const cur = await this.ctx.storage.get('cur'), targetDid = cur && cur.d || did, ar = /^ar/i.test(language || '');
-      const value={id:rand(10),did:targetDid,created:now,title:ar?'غرفة مقفولة':'Locked Room',body:ar?'هناك من يطرق الباب':'Someone is knocking at the door'};
-      notices.push(value); await this.ctx.storage.put('notices',notices.slice(-100)); return value;
+      notices.push({id:rand(10),did:targetDid,created:now,title:ar?'غرفة مقفولة':'Locked Room',body:ar?'هناك من يطرق الباب':'Someone is knocking at the door'});
+      await this.ctx.storage.put('notices',notices.slice(-100));
     });
-    const subscription=await this.ctx.storage.get('push:'+notice.did);
-    if(subscription&&this.env.VAPID_PUBLIC_KEY&&this.env.VAPID_PRIVATE_KEY){
-      try { const response=await sendWebPush(this.env,subscription,knockPayload(/^ar/i.test(language||''))); if(response.status===404||response.status===410)await this.removePush(notice.did); } catch {}
-    }
     return true;
   }
 
-  async pushKnock(did, language) {
-    const cur=await this.ctx.storage.get('cur'), targetDid=cur?.d||did;
-    const subscription=await this.ctx.storage.get('push:'+targetDid), ar=/^ar/i.test(subscription?.language||language||'');
-    if(!subscription||!this.env.VAPID_PUBLIC_KEY||!this.env.VAPID_PRIVATE_KEY)return false;
-    try { const response=await sendWebPush(this.env,subscription,knockPayload(ar)); if(response.status===404||response.status===410)await this.removePush(targetDid); return response.ok; } catch { return false; }
+  // بيبعت إشعار لكل أجهزة الحساب المشتركة (الجهاز الحالي الأول). بيرجّع 'ok' | 'none' | 'fail'
+  async sendPushAll(build, fallbackLang) {
+    if (!this.env.VAPID_PUBLIC_KEY || !this.env.VAPID_PRIVATE_KEY) return 'none';
+    const cur = await this.ctx.storage.get('cur'), first = cur && cur.d ? 'push:' + cur.d : '';
+    const entries = [...(await this.ctx.storage.list({ prefix: 'push:' })).entries()].sort((x, y) => (y[0] === first) - (x[0] === first));
+    if (!entries.length) return 'none';
+    let ok = false;
+    for (const [key, sub] of entries) {
+      try {
+        const r = await sendWebPush(this.env, sub, build(/^ar/i.test(sub.language || fallbackLang || '')));
+        if (r.status === 404 || r.status === 410) await this.ctx.storage.delete(key);
+        else if (r.ok) ok = true;
+        else console.log('push rejected', r.status, (await r.text().catch(() => '')).slice(0, 200));
+      } catch (e) { console.log('push error', String(e)); }
+    }
+    return ok ? 'ok' : 'fail';
   }
+
+  async pushKnock(did, language) { return (await this.sendPushAll(knockPayload, language)) === 'ok'; }
+  async pushUpdate(ver) { return this.sendPushAll((ar) => updatePayload(ar, ver)); }
 
   async takeNotices(did) {
     const now = Date.now();
@@ -914,7 +942,7 @@ export class Room extends DurableObject {
     const language = req.headers.get('Accept-Language') || 'en';
     server.serializeAttachment({ c: 0, reset: Date.now() + 10000, sub, v, d, language, ok: true, until: Date.now() + 3000 });
     const members = await this.ctx.storage.get('members') || {};
-    members[d] = { sub, d, language };
+    members[d] = { sub, d, language, t: Date.now() };
     await this.ctx.storage.put('members', members);
     const all = this.ctx.getWebSockets();
     server.send(JSON.stringify({ t: 'joined', n: all.length }));
@@ -998,12 +1026,12 @@ export class Room extends DurableObject {
       for (const peer of this.ctx.getWebSockets()) {
         if (peer === ws) continue;
         const pa = peer.deserializeAttachment();
-        if (!pa || pa.d === a.d) continue;
+        if (!pa || pa.d === a.d || (pa.sub && pa.sub === a.sub)) continue;
         if (pa.sub && !(await this.alive(peer, pa))) continue;
         try { peer.send(JSON.stringify({ t: 'knock', id: rand(10) })); delivered = true; } catch {}
       }
-      const recipient = Object.values(members).find((x) => x.d !== a.d);
-      if (recipient && recipient.sub) {
+      const recipient = peerOf(members, a);
+      if (recipient) {
         try { const acc=this.env.ACCOUNT.get(this.env.ACCOUNT.idFromName(recipient.sub)); const pushed=await acc.pushKnock(recipient.d,recipient.language); if(!pushed&&!delivered)await acc.queueNotice(recipient.d,recipient.language); } catch {}
       }
       return;
@@ -1045,7 +1073,7 @@ export class Room extends DurableObject {
     }
     if (mid && !delivered) {
       const members = await this.ctx.storage.get('members') || {};
-      const recipient = Object.values(members).find((member) => member.d !== a.d && member.sub);
+      const recipient = peerOf(members, a);
       if (recipient) {
         try {
           const online = await this.env.ACCOUNT.get(this.env.ACCOUNT.idFromName(recipient.sub)).isOnline(recipient.d);
@@ -1057,7 +1085,7 @@ export class Room extends DurableObject {
 
   async syncReceipts(senderDid) {
     const members = await this.ctx.storage.get('members') || {};
-    const recipient = Object.values(members).find((member) => member.d !== senderDid && member.sub);
+    const recipient = peerOf(members, members[senderDid] || {});
     if (!recipient) return;
     try { if (!(await this.env.ACCOUNT.get(this.env.ACCOUNT.idFromName(recipient.sub)).isOnline(recipient.d))) return; } catch { return; }
     const count = await this.ctx.storage.get('historyCount') || 0;
@@ -1152,6 +1180,29 @@ export class Room extends DurableObject {
 }
 
 export class RoomPasswords extends DurableObject {
+  // سجل الحسابات اللي مفعّلة الإشعارات + آخر إصدار اتبلّغ للناس بيه
+  async addPushAccount(sub) {
+    await this.ctx.blockConcurrencyWhile(async () => {
+      const list = await this.ctx.storage.get('pushSubs') || [];
+      if (!list.includes(sub)) { list.push(sub); await this.ctx.storage.put('pushSubs', list.slice(-2000)); }
+    });
+  }
+  async removePushAccount(sub) {
+    await this.ctx.blockConcurrencyWhile(async () => {
+      const list = (await this.ctx.storage.get('pushSubs') || []).filter((x) => x !== sub);
+      await this.ctx.storage.put('pushSubs', list);
+    });
+  }
+  // null = مفيش إصدار جديد. غير كده بيرجّع قايمة الحسابات اللي لازم تتبلّغ (مرة واحدة بس لكل إصدار).
+  async versionCheck(ver) {
+    return this.ctx.blockConcurrencyWhile(async () => {
+      const last = await this.ctx.storage.get('appVersion');
+      if (last === ver) return null;
+      await this.ctx.storage.put('appVersion', ver);
+      if (last && !semverGt(ver, last)) return null; // رجوع لإصدار أقدم: ما نبلّغش
+      return await this.ctx.storage.get('pushSubs') || [];
+    });
+  }
   async isUsed(fingerprint) { return !!(await this.ctx.storage.get('pw:' + fingerprint)); }
   async isActive(roomId) {
     return !(await this.ctx.storage.get('deleted:' + roomId)) && !!(await this.ctx.storage.get('room:' + roomId));

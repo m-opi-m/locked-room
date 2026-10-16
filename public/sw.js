@@ -3,6 +3,7 @@ self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));
 const TXT={ar:{title:'غرفة مقفولة',body:'هناك من يطرق الباب'},en:{title:'Locked Room',body:'Someone is knocking at the door'}};
 self.addEventListener('push',event=>{
   let d={};try{if(event.data)d=event.data.json()}catch{}
+  if(d.kind==='update'){try{self.registration.update()}catch{}}
   const lang=/^ar/i.test(d.lang||'')?'ar':'en',t=TXT[lang];
   event.waitUntil((async()=>{await self.registration.showNotification(d.title||t.title,{
     body:d.body||t.body,lang,dir:lang==='ar'?'rtl':'ltr',

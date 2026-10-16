@@ -3,6 +3,8 @@ import { build, transform } from 'esbuild';
 import { readFileSync, writeFileSync, copyFileSync, appendFileSync } from 'node:fs';
 // رقم الإصدار اللي بيظهر في الإعدادات مصدره package.json (حقل version). زوّده مع أي تعديل.
 const VERSION = JSON.parse(readFileSync('package.json', 'utf8')).version;
+// السيرفر محتاج يعرف رقم الإصدار عشان يبعت إشعار "فيه تحديث" بعد النشر.
+writeFileSync('src/version.js', `export const APP_VERSION = ${JSON.stringify(VERSION)};\n`);
 const o = { minify: true, charset: 'utf8', logLevel: 'warning' };
 await build({ ...o, entryPoints: ['web/app.js'], outfile: 'public/app.js', target: 'es2020' });
 await build({ ...o, entryPoints: ['web/style.css'], outfile: 'public/style.css' });

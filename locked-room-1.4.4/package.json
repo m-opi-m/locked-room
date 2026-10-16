@@ -1,0 +1,17 @@
+{
+  "name": "locked-room",
+  "version": "1.4.4",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node check-version.mjs && node build.mjs",
+    "dev": "npm run build && wrangler dev",
+    "deploy": "node check-version.mjs --strict && node build.mjs && wrangler deploy && node check-version.mjs --stamp",
+    "check": "node check-version.mjs --strict",
+    "test": "node test-devices.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12",
+    "wrangler": "^4.0.0"
+  }
+}
