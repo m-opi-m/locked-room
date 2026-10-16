@@ -3,6 +3,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { connect } from 'cloudflare:sockets';
 import { APP_VERSION } from './version.js';
 import { peerOf, semverGt, updatePayload } from './push-util.js';
+import { fcmConfigured, validFcmToken, sendFcm } from './fcm.js';
 
 const PAGES = new Set(['/', '/app.js', '/style.css', '/logo.png', '/app-icon.png', '/apple-touch-icon.png', '/icon-192.png', '/badge-96.png', '/sw.js', '/gallery-editor.js']);
 const knockPayload = (ar) => ({ title: ar ? 'غرفة مقفولة' : 'Locked Room', body: ar ? 'هناك من يطرق الباب' : 'Someone is knocking at the door', lang: ar ? 'ar' : 'en', dir: ar ? 'rtl' : 'ltr', icon: '/icon-192.png', badge: '/badge-96.png', tag: 'locked-room-knock-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url: '/' });
@@ -427,12 +428,12 @@ async function handle(req, url, env, did) {
     return json(url, { sessions: await account(env, s.sub).sessionLog() });
   }
 
-  const POSTS = ['/api/setup', '/api/recover/send', '/api/recover/verify', '/api/recover/wipe', '/api/login', '/api/reset', '/api/ack', '/api/notme', '/api/login-request/respond', '/api/change-password', '/api/room-password/check', '/api/room/status', '/api/room/delete', '/api/push/subscribe', '/api/push/unsubscribe', '/auth/logout'];
+  const POSTS = ['/api/setup', '/api/recover/send', '/api/recover/verify', '/api/recover/wipe', '/api/login', '/api/reset', '/api/ack', '/api/notme', '/api/login-request/respond', '/api/change-password', '/api/room-password/check', '/api/room/status', '/api/room/delete', '/api/push/subscribe', '/api/push/unsubscribe', '/api/fcm/register', '/api/fcm/unregister', '/auth/logout'];
   if (req.method === 'POST' && POSTS.includes(path)) {
     if (req.headers.get('Origin') !== url.origin) return json(url, { e: 'forbidden' }, 403);
     if (path === '/auth/logout') {
       const s = await readSession(req, url, env);
-      if (s && s.ok && s.did === did) await account(env, s.sub).endSession(s.v, did);
+      if (s && s.ok && s.did === did) { const a = account(env, s.sub); await a.endSession(s.v, did); await a.removeFcm(did); }
       return json(url, { ok: true }, 200, [dead]);
     }
 
@@ -485,6 +486,14 @@ async function handle(req, url, env, did) {
       if(endpoint.protocol!=='https:' || endpoint.username || endpoint.password || !pushHost || sub.keys.p256dh.length>256 || sub.keys.auth.length>128) return json(url,{e:'invalid'},400);
       await acc.savePush(did,{endpoint:endpoint.href,keys:{p256dh:sub.keys.p256dh,auth:sub.keys.auth},origin:url.origin,language:typeof body.language==='string'&&/^[A-Za-z-]{2,32}$/.test(body.language)?body.language:'en'});
       try { await env.ROOM_PASSWORDS.get(env.ROOM_PASSWORDS.idFromName('global')).addPushAccount(s.sub); } catch {}
+      return json(url,{ok:true});
+    }
+    if (path === '/api/fcm/register' || path === '/api/fcm/unregister') {
+      if (!mine || !st.ok) return json(url,{e:'session'},401);
+      if (path === '/api/fcm/unregister') { await acc.removeFcm(did); return json(url,{ok:true}); }
+      const body=await readBody(req);
+      if (!validFcmToken(body?.token)) return json(url,{e:'invalid'},400);
+      await acc.saveFcm(did,{token:body.token,language:typeof body.language==='string'&&/^[A-Za-z-]{2,32}$/.test(body.language)?body.language:'en'});
       return json(url,{ok:true});
     }
     if (path === '/api/room/status') {
@@ -601,7 +610,7 @@ async function claim(storage, did, n, l) {
   const now = Date.now(), v = rand(18), id = rand(12);
   const cur = await storage.get('cur');
   const sessions = await storage.get('sessions') || [];
-  if (cur?.d && cur.d !== did) await storage.delete('push:' + cur.d);
+  if (cur?.d && cur.d !== did) { await storage.delete('push:' + cur.d); await storage.delete('fcm:' + cur.d); }
   if (cur && cur.logId) {
     const previous = sessions.find((x) => x.id === cur.logId);
     if (previous && !previous.ended) { previous.ended = cur.lastSeen || now; previous.reason = 'replaced'; }
@@ -646,6 +655,7 @@ export class Account extends DurableObject {
       await this.ctx.storage.put('sessions', sessions);
       await this.ctx.storage.delete('cur');
       await this.ctx.storage.delete('push:' + did);
+      await this.ctx.storage.delete('fcm:' + did);
       return true;
     });
   }
@@ -661,6 +671,15 @@ export class Account extends DurableObject {
 
   async savePush(did, subscription) { await this.ctx.storage.put('push:' + did, subscription); return true; }
   async removePush(did) { await this.ctx.storage.delete('push:' + did); return true; }
+  // توكن FCM لتطبيق Android. توكن واحد لكل جهاز، ولو نفس التوكن اتسجل لجهاز تاني بيتشال من القديم.
+  async saveFcm(did, rec) {
+    await this.ctx.blockConcurrencyWhile(async () => {
+      for (const [k, v] of (await this.ctx.storage.list({ prefix: 'fcm:' })).entries()) if (k !== 'fcm:' + did && v && v.token === rec.token) await this.ctx.storage.delete(k);
+      await this.ctx.storage.put('fcm:' + did, rec);
+    });
+    return true;
+  }
+  async removeFcm(did) { await this.ctx.storage.delete('fcm:' + did); return true; }
   async queueNotice(did, language) {
     await this.ctx.blockConcurrencyWhile(async () => {
       const now = Date.now(), notices = (await this.ctx.storage.get('notices') || []).filter((x) => x.created > now - 86400000);
@@ -673,18 +692,30 @@ export class Account extends DurableObject {
 
   // بيبعت إشعار لكل أجهزة الحساب المشتركة (الجهاز الحالي الأول). بيرجّع 'ok' | 'none' | 'fail'
   async sendPushAll(build, fallbackLang) {
-    if (!this.env.VAPID_PUBLIC_KEY || !this.env.VAPID_PRIVATE_KEY) return 'none';
-    const cur = await this.ctx.storage.get('cur'), first = cur && cur.d ? 'push:' + cur.d : '';
-    const entries = [...(await this.ctx.storage.list({ prefix: 'push:' })).entries()].sort((x, y) => (y[0] === first) - (x[0] === first));
-    if (!entries.length) return 'none';
+    const cur = await this.ctx.storage.get('cur'), firstDid = cur && cur.d ? cur.d : '';
+    const byCur = (first) => (x, y) => (y[0] === first) - (x[0] === first);
+    const webOn = !!(this.env.VAPID_PUBLIC_KEY && this.env.VAPID_PRIVATE_KEY);
+    const webEntries = webOn ? [...(await this.ctx.storage.list({ prefix: 'push:' })).entries()].sort(byCur('push:' + firstDid)) : [];
+    // FCM بيبعت الطرق بس (مش إشعار التحديث) ولازم الـ Secret يكون موجود
+    const fcmEntries = fcmConfigured(this.env) && build(false)?.kind !== 'update' ? [...(await this.ctx.storage.list({ prefix: 'fcm:' })).entries()].sort(byCur('fcm:' + firstDid)) : [];
+    if (!webEntries.length && !fcmEntries.length) return 'none';
     let ok = false;
-    for (const [key, sub] of entries) {
+    for (const [key, sub] of webEntries) {
       try {
         const r = await sendWebPush(this.env, sub, build(/^ar/i.test(sub.language || fallbackLang || '')));
         if (r.status === 404 || r.status === 410) await this.ctx.storage.delete(key);
         else if (r.ok) ok = true;
         else console.log('push rejected', r.status, (await r.text().catch(() => '')).slice(0, 200));
       } catch (e) { console.log('push error', String(e)); }
+    }
+    for (const [key, rec] of fcmEntries) {
+      try {
+        const payload = build(/^ar/i.test(rec.language || fallbackLang || ''));
+        const r = await sendFcm(this.env, rec.token, payload);
+        if (r.ok) ok = true;
+        else if (r.gone) await this.ctx.storage.delete(key);
+        else console.log('fcm rejected', r.status, r.detail || '');
+      } catch (e) { console.log('fcm error', String(e)); }
     }
     return ok ? 'ok' : 'fail';
   }
