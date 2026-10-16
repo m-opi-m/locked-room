@@ -4,7 +4,7 @@ import { connect } from 'cloudflare:sockets';
 import { APP_VERSION } from './version.js';
 import { peerOf, semverGt, updatePayload } from './push-util.js';
 
-const PAGES = new Set(['/', '/app.js', '/style.css', '/logo.png', '/icon-192.png', '/badge-96.png', '/sw.js', '/gallery-editor.js']);
+const PAGES = new Set(['/', '/app.js', '/style.css', '/logo.png', '/app-icon.png', '/apple-touch-icon.png', '/icon-192.png', '/badge-96.png', '/sw.js', '/gallery-editor.js']);
 const knockPayload = (ar) => ({ title: ar ? 'غرفة مقفولة' : 'Locked Room', body: ar ? 'هناك من يطرق الباب' : 'Someone is knocking at the door', lang: ar ? 'ar' : 'en', dir: ar ? 'rtl' : 'ltr', icon: '/icon-192.png', badge: '/badge-96.png', tag: 'locked-room-knock-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url: '/' });
 const MAX_MSG = 6 * 1024 * 1024;
 const SESSION_DAYS = 7;          // مدة بقاء المستخدم داخل بعد ما يكتب الباسورد

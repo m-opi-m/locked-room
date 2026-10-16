@@ -13,6 +13,8 @@ writeFileSync('public/index.html', readFileSync('web/index.html', 'utf8').replac
 copyFileSync('web/logo.png', 'public/logo.png');
 copyFileSync('web/sw.js', 'public/sw.js');
 copyFileSync('web/icon-192.png', 'public/icon-192.png');
+copyFileSync('web/app-icon.png', 'public/app-icon.png');
+copyFileSync('web/apple-touch-icon.png', 'public/apple-touch-icon.png');
 copyFileSync('web/badge-96.png', 'public/badge-96.png');
 
 // مسار إرسال الصور بيتضم جوه app.js نفسه (مش ملف لوحده) عشان السيرفر ميرجعش 404 عليه.
