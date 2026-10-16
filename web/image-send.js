@@ -140,7 +140,6 @@
     const fresh = files.filter((f) => !seen.has(f));
     if (!fresh.length) return;
     fresh.forEach((f) => seen.add(f));
-    try { input.value = ''; } catch {} // الـ File objects فاضلة صالحة بعد التصفير
     const room = Math.max(0, MAX_IMG - items.length);
     const take = fresh.slice(0, room);
     const limitMsg = fresh.length > take.length ? `الحد الأقصى ${MAX_IMG} صور في المرة — اتاخدت أول ${take.length} بس` : '';
@@ -148,6 +147,7 @@
     say('⏳ جاري تجهيز ' + (take.length > 1 ? take.length + ' صور…' : 'الصورة…'), 0);
     // نقرأ كل البايتات فوراً: على أندرويد الـ URI ممكن يبوظ لو اتأخرنا بعد رجوع التطبيق.
     const bufs = await Promise.all(take.map((f) => f.arrayBuffer().catch(() => null)));
+    try { input.value = ''; } catch {} // التصفير بعد قراءة البايتات بس (قبلها ممكن يبوظ الـ URI على أندرويد)
     const added = []; let bad = 0, lastErr = '';
     for (let i = 0; i < take.length; i++) {
       const f = take[i], buf = bufs[i]; bufs[i] = null;
