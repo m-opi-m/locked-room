@@ -13,5 +13,5 @@ copyFileSync('web/sw.js', 'public/sw.js');
 copyFileSync('web/icon-192.png', 'public/icon-192.png');
 copyFileSync('web/badge-96.png', 'public/badge-96.png');
 
-// محرر الصور بيتضم جوه app.js نفسه (مش ملف لوحده) عشان السيرفر ميرجعش 404 عليه.
-appendFileSync('public/app.js', '\n' + (await transform(readFileSync('web/gallery-editor.js', 'utf8'), { minify: true, charset: 'utf8', target: 'es2020' })).code);
+// مسار إرسال الصور بيتضم جوه app.js نفسه (مش ملف لوحده) عشان السيرفر ميرجعش 404 عليه.
+appendFileSync('public/app.js', '\n' + (await transform(readFileSync('web/image-send.js', 'utf8'), { minify: true, charset: 'utf8', target: 'es2020' })).code);
