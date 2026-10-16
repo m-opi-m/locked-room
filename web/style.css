@@ -386,6 +386,8 @@ body.shield #shield{display:grid}
 .callControl{min-width:82px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;background:#ffffff14;border:1px solid #ffffff22;border-radius:22px;padding:14px 16px;color:#f6ffff;font-size:.72rem;font-weight:600;backdrop-filter:blur(18px)}
 .callControl:hover{transform:translateY(-3px);background:#ffffff24;border-color:#ffffff55}
 .controlIcon{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:#ffffff20;font-size:1.25rem}
+.callControl.isOn:not(.hang){background:#22d8ae26;border-color:var(--gline)}
+.callControl.isOn:not(.hang) .controlIcon{background:var(--g);color:var(--gink)}
 .callControl.hang{background:linear-gradient(135deg,#f0535c,#d03a49);border-color:#ff8a92;min-width:86px}
 .callControl.hang .controlIcon{background:#ffffff26}
 .callControl.isOff:not(.hang){background:#4a2d3a;border-color:#d86b80}
@@ -410,11 +412,12 @@ body.shield #shield{display:grid}
 @keyframes livePulse{50%{opacity:.45;box-shadow:0 0 5px var(--ok)}}
 @media(max-width:600px){
   .callBackdrop{inset:12% 0 22%}.callOrb{width:min(58vw,220px)}
-  .callControls{gap:5px;bottom:max(20px,env(safe-area-inset-bottom))}
-  .callControl{min-width:54px;padding:8px 5px;font-size:.58rem;border-radius:18px}
-  .controlIcon{width:39px;height:39px}.callControl.hang{min-width:58px}.callControl.switchCam{min-width:54px}
+  .callControls{gap:5px;row-gap:8px;flex-wrap:wrap;bottom:max(20px,env(safe-area-inset-bottom))}
+  .callControl{min-width:52px;padding:8px 4px;font-size:.58rem;border-radius:18px}
+  .controlIcon{width:38px;height:38px}.callControl.hang{min-width:58px}.callControl.switchCam{min-width:54px}
   .callControls .callFilterWrap>.callControl{min-width:54px}
   #localVid{right:16px;bottom:132px;width:28vw;border-radius:16px}
+  #call:not(.audio) #localVid{bottom:226px}
   .signalMeter{padding:7px 9px;gap:7px;font-size:.7rem}.callTop{padding-inline:16px}
 }
 
