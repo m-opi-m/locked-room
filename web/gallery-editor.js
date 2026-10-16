@@ -251,6 +251,11 @@
     for (let i = 0; i < list.length; i++) { await pendingBubble(list[i]); }
   }
 
+  // لو الموبايل قطع الاتصال وانت برا التطبيق (معرض الصور مثلاً)، نرجّع الاتصال بالغرفة أول ما ترجع من غير ما يمسح الشات.
+  ['visibilitychange', 'focus', 'online', 'pageshow'].forEach((ev) => addEventListener(ev, () => {
+    if (!document.hidden) setTimeout(() => { try { window.lrReconnect?.()?.catch?.(() => {}); } catch {} }, 300);
+  }));
+
   // ---------- فتح المحرر بعد اختيار الصور ----------
   // listener في الـ capture + stopImmediatePropagation عشان معالج app.js القديم (اللي بيبعت الصورة علطول) ما يشتغلش.
   file.onchange = null;
