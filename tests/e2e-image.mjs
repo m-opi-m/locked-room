@@ -75,7 +75,9 @@ await A.click('#lrpSend');
 await B.waitForFunction((n) => document.querySelectorAll('#log img').length > n, before, { timeout: 20000 }).catch(() => {});
 ok('B استلم الصورة', (await imgsB()) === before + 1);
 await B.waitForFunction((t) => document.getElementById('log').innerText.includes(t), 'شرح تجريبي ' + stamp, { timeout: 10000 }).catch(() => {});
-ok('B استلم الشرح', (await B.locator('#log').innerText()).includes('شرح تجريبي ' + stamp));
+ok('الشرح جوه نفس فقاعة الصورة عند B', await B.evaluate((t) => { const m = [...document.querySelectorAll('#log .m')].find((x) => x.querySelector('.imgCap')); return !!m && m.querySelector('img') && m.innerText.includes(t); }, 'شرح تجريبي ' + stamp));
+ok('الشرح مش رسالة منفصلة', await B.evaluate((t) => [...document.querySelectorAll('#log .m')].filter((x) => x.innerText.includes(t) && !x.querySelector('img')).length === 0, 'شرح تجريبي ' + stamp));
+ok('الشرح ظاهر عند A كمان جوه نفس الفقاعة', await A.evaluate((t) => [...document.querySelectorAll('#log .m')].some((x) => x.querySelector('img') && x.innerText.includes(t)), 'شرح تجريبي ' + stamp));
 ok('المعاينة اتقفلت بعد الإرسال', !(await A.locator('.lrp:not(.hidden)').count()));
 // 2) تدوير + إلغاء + إغلاق من غير إرسال
 await pick(A, 0); await A.waitForSelector('.lrp:not(.hidden)');

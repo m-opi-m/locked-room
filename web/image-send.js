@@ -78,13 +78,14 @@
   const chatOpen = () => { const c = $('chat'); return !!c && !c.classList.contains('hidden'); };
 
   // ---------- فقاعة الصورة في الشات (دايرة تحميل / ⟳ للإعادة) ----------
-  function bubble(previewUrl, retry) {
+  function bubble(previewUrl, retry, caption) {
     const log = $('log'); if (!log) return { sending() {}, fail() {}, ok() {}, cancelled: false };
     const m = document.createElement('div'); m.className = 'm me lrPending';
     const wrap = document.createElement('div'); wrap.className = 'lrPendWrap';
     const im = document.createElement('img'); im.alt = 'صورة'; im.src = previewUrl; im.draggable = false;
     const ov = document.createElement('button'); ov.type = 'button'; ov.className = 'lrPendOv';
     wrap.append(im, ov); m.append(wrap);
+    if (caption) { const cp = document.createElement('p'); cp.className = 'imgCapText'; cp.textContent = caption; m.append(cp); }
     const ui = { cancelled: false };
     const state = (s) => {
       m.dataset.state = s;
@@ -105,14 +106,14 @@
   }
 
   // ---------- إرسال ملف جاهز (JPEG) مع محاولات ----------
-  async function sendPrepared(file, ui) {
+  async function sendPrepared(file, ui, caption) {
     ui.cancelled = false; ui.sending();
     let lastErr;
     for (let attempt = 1; attempt <= 3; attempt++) {
       if (ui.cancelled) return false;
       try {
         step('send', attempt);
-        await window.lrSendSelectedImage(file, () => ui.cancelled);
+        await window.lrSendSelectedImage(file, () => ui.cancelled, caption);
         if (ui.cancelled) return false;
         step('sent'); ui.ok(); return true;
       } catch (e) {
@@ -162,12 +163,9 @@
     try { prepared = await canvasToJpeg(cv); } catch (e) { say('❌ ' + (e?.message || 'تعذر تجهيز الصورة'), 6000); return; }
     if (!chatOpen()) { say('🔒 الشات اتقفل. ادخل الباسورد وارجع ابعت الصورة تاني.', 7000); return; }
     const previewUrl = URL.createObjectURL(prepared);
-    const ui = bubble(previewUrl, () => sendPrepared(prepared, ui));
-    const ok = await sendPrepared(prepared, ui);
-    if (ok) {
-      if (caption && typeof window.lrSendCaption === 'function') { try { await window.lrSendCaption(caption); } catch (e) { say('الصورة اتبعتت بس الشرح فشل: ' + (e?.message || ''), 5000); } }
-      setTimeout(() => URL.revokeObjectURL(previewUrl), 3000);
-    }
+    const ui = bubble(previewUrl, () => sendPrepared(prepared, ui, caption), caption);
+    const ok = await sendPrepared(prepared, ui, caption); // الشرح بيتبعت جوه نفس رسالة الصورة
+    if (ok) setTimeout(() => URL.revokeObjectURL(previewUrl), 3000);
   }
   // ================= صفحة المعاينة + القص =================
   const ICON_CROP = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>';
