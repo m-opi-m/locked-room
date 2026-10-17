@@ -750,3 +750,101 @@ html[dir=ltr] .vbSendBtn{transform:none}
 .codeCardActions button:first-child{background:linear-gradient(135deg,var(--g),var(--g2));color:var(--gink);border-color:transparent}
 .codeCardActions button>.uiIcon{width:16px;height:16px}
 .codeCardSr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ================= 1.17: شكل المكالمة الجديد + كروت المكالمة في الشات ================= */
+#call{background:linear-gradient(180deg,#17a8e0 0%,#2e8fe6 55%,#3b6fe8 100%)}
+#call.vmode{background:#050d1b}
+#call .callShade{display:none}
+#call.vmode .callShade{display:block;background:linear-gradient(180deg,#000a 0%,transparent 22%,transparent 60%,#000b 100%)}
+#call.vmode.selfonly #remoteVid{opacity:0}
+#call .callTop{justify-content:center;pointer-events:none}
+#call .callTop>*{pointer-events:auto}
+#call .callMinBtn{position:absolute;left:14px;top:max(14px,env(safe-area-inset-top));margin:0;background:transparent;border:0;backdrop-filter:none}
+#call .signalMeter,#call .liveDot,#call .callOrb i{display:none!important}
+#call .callIdentity{display:none;text-align:center;padding-top:6px}
+#call.vmode .callIdentity{display:block}
+#call .callIdentity div{justify-items:center;gap:3px}
+#call .callIdentity strong{font-size:1.3rem;font-weight:700}
+#call #callStatus{display:none;color:#ffe9a8}#call #callStatus.lrShow{display:block}
+#callSub{color:#e6eefc;font-size:.92rem;font-variant-numeric:tabular-nums}
+#call .callBackdrop{inset:0 0 20% 0;gap:18px}
+#call.vmode .callBackdrop{opacity:0;pointer-events:none}
+#call .callBackdrop .callName{font-size:1.7rem;font-weight:700}
+#call .callBackdrop #callElapsed{font-size:1rem;color:#eaf3ff;font-variant-numeric:tabular-nums}
+#call .callOrb{width:min(52vw,250px)}
+#call .callOrb #callAvatar{width:100%;height:100%;background:linear-gradient(180deg,#9ad365,#3fb94a);background-size:cover;background-position:center;border:0;box-shadow:none;animation:none;color:#fff;font-weight:700;-webkit-text-stroke:2px #000;paint-order:stroke fill}
+#call.selfonly #localVid{inset:0!important;width:100%!important;height:100%!important;aspect-ratio:auto;border-radius:0;border:0;z-index:1;display:block;box-shadow:none}
+/* الأزرار السفلية */
+#call .callControls{gap:clamp(6px,2.5vw,24px);justify-content:space-evenly;flex-wrap:nowrap;bottom:max(26px,env(safe-area-inset-bottom));padding:0 12px}
+#call .callControls>*{order:5}
+#call:not(.vmode) #speakerBtn{order:1}
+#call:not(.vmode) #switchCamBtn{display:none!important}
+#call #switchCamBtn{order:1}#call #camBtn{order:2}#call #muteBtn{order:3}#call #hangBtn{order:4}
+#call .callControl{min-width:68px;padding:0;gap:8px;background:none;border:0;backdrop-filter:none;font-size:.78rem;font-weight:500;color:#fff;transform:none}
+#call .callControl:hover{transform:none;background:none}
+#call .controlIcon{width:62px;height:62px;background:#ffffff38}
+#call.vmode .controlIcon{background:#3a3a3cb8}
+#call .callControl.isOn:not(.hang){background:none;border:0}
+#call .callControl.isOn:not(.hang) .controlIcon{background:#ffffff38;color:#fff}
+#call.vmode .callControl.isOn:not(.hang) .controlIcon{background:#3a3a3cb8}
+#call .callControl.isOff:not(.hang){background:none;border:0}
+#call .callControl.isOff:not(.hang) .controlIcon{background:#fff;color:#1c58c6}
+#call #switchCamBtn{background:none}
+#call #switchCamBtn .controlIcon{background:#fff;color:#111}
+#call .callControl.hang{background:none;border:0;min-width:68px}
+#call .callControl.hang .controlIcon{background:#f21f2f;color:#fff}
+#hangBtn .uiIcon,#miniHang .uiIcon{transform:rotate(135deg)}
+/* السماعة فوق على اليمين وقت الفيديو، وفلاتر/فلاش جنبها */
+#call.vmode #speakerBtn{position:fixed;top:max(14px,env(safe-area-inset-top));right:14px;min-width:0;z-index:6}
+#call.vmode #speakerBtn .controlIcon,#call .callFilterWrap .controlIcon,#call .callFlashWrap .controlIcon{width:44px;height:44px}
+#call.vmode #speakerBtn .controlIcon,#call .callFilterWrap .controlIcon,#call .callFlashWrap .controlIcon{background:#00000066}
+#call.vmode #speakerLabel{display:none}
+#call .callFilterWrap,#call .callFlashWrap{display:none}
+#call.vmode:not(.camera-off) .callFilterWrap,#call.vmode:not(.camera-off) .callFlashWrap{display:block;position:fixed;top:max(14px,env(safe-area-inset-top));z-index:6}
+#call .callFilterWrap{right:70px}#call .callFlashWrap{right:126px}
+#call .callFilterWrap .callControl,#call .callFlashWrap .callControl{min-width:0}
+#call .callFilterWrap .callControl>span:last-child,#call .callFlashWrap .callControl>span:last-child{display:none}
+#call .callFilterPanel{top:calc(100% + 10px);bottom:auto;left:auto;right:0;transform:none}
+#call .callFlashWrap .flashMenu{top:calc(100% + 8px);bottom:auto}
+#call #localVid.dragging{transition:none}
+@media(max-width:600px){
+  #call .callControls{gap:4px;flex-wrap:nowrap;row-gap:0}
+  #call .callControl{min-width:62px;padding:0;font-size:.74rem;border-radius:0}
+  #call .controlIcon{width:58px;height:58px}
+  #call.vmode #speakerBtn .controlIcon,#call .callFilterWrap .controlIcon,#call .callFlashWrap .controlIcon{width:44px;height:44px}
+  #call #switchCamBtn,#call .callControl.hang{min-width:62px}
+  #call:not(.audio):not(.selfonly) #localVid{bottom:140px}
+  #call .callBackdrop{inset:0 0 20% 0}
+}
+/* الشريط العلوي (مكالمة صوت مصغّرة): إنهاء شمال، الاسم في النص، كتم يمين */
+#call.mini.audio{background:#1f2023;border-bottom:1px solid #ffffff1f}
+#call.mini.audio .callMiniBar{direction:ltr;gap:10px}
+#call #miniHang{order:1;background:#f21f2f;border-color:#f21f2f}
+#call #miniOpen{order:2;flex:1;justify-content:center;gap:6px;font-size:.9rem;color:#d4d7dc}
+#call #miniMute{order:3;background:transparent;border:0}
+#call #miniMute.isOff{background:#fff;color:#111}
+#call .miniBody #miniTime{margin-inline-start:0;font-weight:500}
+#call .miniBody strong::after{content:" - "}
+/* كروت المكالمة في الشات */
+.m .callLog{display:grid;gap:10px;min-width:min(250px,66vw);padding:2px 0}
+.callLog .callLogTop{display:flex;align-items:center;gap:12px}
+.callLog .callLogIc{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#ffffff26;flex:0 0 auto}
+.callLog .callLogIc .uiIcon{width:20px;height:20px}
+.callLog.missed .callLogIc{background:#e5484d;color:#fff}
+.callLog strong{display:block;font-size:.98rem;font-weight:700}
+.callLog small{opacity:.8;font-size:.82rem}
+.callLog button{width:100%;border:0;border-radius:12px;padding:11px;background:#ffffff1f;color:inherit;font-weight:600;font-size:.92rem}
+.callLog button:active{background:#ffffff33}
+/* شاشة اختيار وضع الفيديو */
+#camPick{position:fixed;inset:0;z-index:70;background:#000;display:flex;flex-direction:column;justify-content:flex-end;color:#fff}
+#camPick video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#camPick .cpBack{position:absolute;left:14px;top:max(14px,env(safe-area-inset-top));z-index:2;width:44px;height:44px;padding:0;border-radius:50%;display:grid;place-items:center;background:#00000055;border:0;color:#fff}
+#camPick .cpShare{position:relative;z-index:2;margin:0 16px 14px;padding:16px;border:0;border-radius:12px;background:linear-gradient(90deg,#2a6df4,#08a3e8);color:#fff;font-size:1.05rem;font-weight:600}
+#camPick .cpTabs{position:relative;z-index:2;display:flex;justify-content:space-around;padding:6px 8px max(22px,env(safe-area-inset-bottom))}
+#camPick .cpTabs button{background:none;border:0;color:#ffffffb8;font-size:.95rem;padding:8px 6px}
+#camPick .cpTabs button.on{color:#fff;font-weight:700}
+/* قوائم الضغط المطوّل (الصوت / مشاركة الشاشة) */
+.lrMenu{position:fixed;z-index:90;display:grid;min-width:170px;padding:6px;gap:4px;background:#0c1c2cf5;border:1px solid #ffffff30;border-radius:16px;box-shadow:0 12px 35px #0009}
+.lrMenu button{white-space:nowrap;text-align:start;border:0;background:transparent;color:#fff;font-size:.9rem;padding:10px 12px;border-radius:10px}
+.lrMenu button:hover,.lrMenu button:active{background:#ffffff18}
+#call .callControls{direction:ltr}
