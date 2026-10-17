@@ -884,3 +884,21 @@ html[dir=ltr] .vbSendBtn{transform:none}
 .vaultNudge small{color:#ff9aa8;min-height:1em}
 .vaultNudge .vnRow{display:flex;gap:.6rem}.vaultNudge .vnRow button{flex:1}
 .vaultNudge .ghost{background:transparent;border:1px solid var(--line);color:var(--mute)}
+
+/* ===== 1.21: نسمع معًا ===== */
+.musicBar{display:flex;align-items:center;gap:.55rem;padding:.5rem .7rem;background:linear-gradient(165deg,#132a50,#0d1f3d);border-bottom:1px solid var(--line2);flex:none}
+.musicBar.hidden{display:none}
+.musicBar .ic{flex:none}
+.musicBar .musicPlay{width:42px;height:42px;border-radius:50%;background:var(--g);color:#06142b;display:grid;place-items:center;border:0}
+.musicPlay:disabled{opacity:.5}
+.musicPlay .uiIcon{width:20px;height:20px;color:inherit}
+.musicBody{flex:1;min-width:0;display:grid;gap:.1rem}
+.musicName{font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.musicSub{opacity:.75;font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.musicSeek{-webkit-appearance:none;appearance:none;width:100%;height:18px;background:transparent;margin:0;direction:ltr}
+.musicSeek::-webkit-slider-runnable-track{height:4px;border-radius:4px;background:linear-gradient(to right,var(--g) var(--p,0%),#ffffff26 var(--p,0%))}
+.musicSeek::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;margin-top:-5px}
+.musicSeek::-moz-range-track{height:4px;border-radius:4px;background:#ffffff26}
+.musicSeek::-moz-range-progress{height:4px;border-radius:4px;background:var(--g)}
+.musicSeek::-moz-range-thumb{width:14px;height:14px;border:0;border-radius:50%;background:#fff}
+.musicSeek:disabled{opacity:.6}

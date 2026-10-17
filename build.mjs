@@ -9,7 +9,7 @@ const o = { minify: true, charset: 'utf8', logLevel: 'warning' };
 // voice.js بيتحط جوه نفس الـ closure بتاع app.js (قبل قفلته) عشان يشوف متغيراته (t, u, Pe, Ee, ...).
 const APP_SRC = readFileSync('web/app.js', 'utf8'), APP_END = '\n})();})();\n';
 if (APP_SRC.split(APP_END).length !== 2) throw new Error('build: مش لاقي نهاية app.js الوحيدة اللي هيتحط قبلها voice.js');
-const APP_MERGED = APP_SRC.replace(APP_END, () => '\n' + readFileSync('web/voice.js', 'utf8') + '\n' + readFileSync('web/call-ui.js', 'utf8') + '\n' + readFileSync('web/inbox.js', 'utf8') + '\n' + readFileSync('web/vault.js', 'utf8') + '\n' + readFileSync('web/files.js', 'utf8') + APP_END);
+const APP_MERGED = APP_SRC.replace(APP_END, () => '\n' + readFileSync('web/voice.js', 'utf8') + '\n' + readFileSync('web/call-ui.js', 'utf8') + '\n' + readFileSync('web/inbox.js', 'utf8') + '\n' + readFileSync('web/vault.js', 'utf8') + '\n' + readFileSync('web/files.js', 'utf8') + '\n' + readFileSync('web/music.js', 'utf8') + APP_END);
 await build({ ...o, stdin: { contents: APP_MERGED, loader: 'js', sourcefile: 'web/app.js' }, outfile: 'public/app.js', target: 'es2020' });
 // فك HEIC (wasm) كملف لوحده بيتحمّل عند الحاجة بس
 await build({ ...o, entryPoints: ['web/heic-entry.js'], bundle: true, format: 'iife', platform: 'browser', outfile: 'public/heic.js', target: 'es2020' });
