@@ -23,7 +23,7 @@
   const done = (tx) => new Promise((res, rej) => { tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error); });
   const rank = { sent: 0, delivered: 1, read: 2 };
   const roomRange = (rid) => IDBKeyRange.bound([rid, ''], [rid, '\uffff']);
-  const META_KEYS = ['seq', 'at', 'fromSelf', 'once', 'opened', 'receipt', 'kind'];
+  const META_KEYS = ['seq', 'at', 'fromSelf', 'once', 'opened', 'receipt', 'kind', 'played'];
 
   const api = {
     async put(rec) {

@@ -211,9 +211,6 @@ body.homeView #home{position:relative;min-height:100vh;min-height:100dvh;backgro
 .chatVideo{display:block;width:min(65vw,360px);max-height:360px;border-radius:12px;background:#050b14}
 .fileMessage a{display:block;color:#a8f3df;max-width:65vw;overflow-wrap:anywhere}
 audio{max-width:min(68vw,340px);height:42px}
-.voiceMessage{display:grid;gap:.35rem;min-width:min(260px,65vw);padding:.55rem .7rem;border:1px solid var(--gline);border-radius:16px;background:linear-gradient(135deg,#0f3d44,#10243c)}
-.voiceMessageHead{display:flex;align-items:center;gap:.4rem;color:#8ce9cf;font-size:.78rem}.voiceMessageHead .uiIcon{width:16px;height:16px}
-.voicePlayer{width:min(280px,70vw);height:38px;max-width:100%}
 .audioFileMessage{display:grid;gap:.3rem;min-width:170px;padding:.65rem .8rem;border:1px solid #4c93ff44;border-radius:14px;background:linear-gradient(135deg,#12294a,#10213a)}
 .audioFileLabel{color:#a8c2e6;font-size:.75rem}.audioFileMessage a{color:#e0ecf8}
 .viewOnceMessage{display:flex;align-items:center;gap:10px;max-width:70vw;padding:10px 13px;border-radius:16px;background:#0f3a3a;border:1px solid var(--gline);color:#fff;text-align:start}
@@ -237,13 +234,7 @@ textarea{-webkit-user-select:text;user-select:text}
 .send:not(:disabled):active{transform:scaleX(-1) scale(.94)}
 html[dir=ltr] .send{transform:none}html[dir=ltr] .send:not(:disabled):active{transform:scale(.94)}
 .send>.uiIcon{width:22px;height:22px;stroke-width:2}
-.recordControl{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:none}
-.recordBtn{background:#0d1f3be6!important;border:1px solid var(--line)!important;width:48px!important;height:48px!important;color:#a9ecda!important}
-.recordBtn.recording{color:#ff6b78!important;border-color:#ff6b7866!important;animation:recordPulse 1s ease-in-out infinite}
-.cancelRecord{width:30px;height:27px;display:grid;place-items:center;padding:0;border:0;border-radius:9px;background:#7f1d28;color:#ffdde0;box-shadow:0 3px 12px #e5393540;animation:cancelRecordIn .18s ease-out}
-.cancelRecord.hidden{display:none}.cancelRecord:hover{background:#b4232f}.cancelRecord .uiIcon{width:16px;height:16px}
 @keyframes recordPulse{50%{opacity:.5}}
-@keyframes cancelRecordIn{from{opacity:0;transform:translateY(4px) scale(.85)}to{opacity:1;transform:translateY(0) scale(1)}}
 
 /* emoji */
 .emoji{background:#0b1a33;border-top:1px solid var(--line)}
@@ -260,7 +251,6 @@ html[dir=ltr] .send{transform:none}html[dir=ltr] .send:not(:disabled):active{tra
 .attachMenuItem{display:flex;align-items:center;gap:.7rem;width:100%;padding:.65rem .75rem;text-align:start;border:0;border-radius:14px;background:transparent;color:var(--text);white-space:nowrap;touch-action:manipulation}
 .attachMenuItem:hover,.attachMenuItem:focus-visible{background:#ffffff10}
 .attachMenuItem .uiIcon{width:34px;height:34px;padding:7px;border-radius:12px;background:var(--gsoft);color:var(--g)}
-#cameraOpen .uiIcon{background:#4c93ff22;color:#8cbcff}
 #fileSend .uiIcon{background:#ffcb6b1f;color:var(--amber)}
 #chat .attachMenu{position:absolute;top:auto;bottom:calc(100% + .65rem);right:0;left:auto;inset-inline-start:auto;inset-inline-end:0;z-index:120;display:grid}
 @keyframes attachMenuIn{from{opacity:0;transform:translateY(6px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
@@ -467,7 +457,6 @@ body.callBarOn #home{padding-top:1rem}
 @keyframes replyFlash{0%,100%{filter:none}30%{filter:brightness(1.7) saturate(1.3)}}
 
 /* ---------- 10) Camera capture / review ---------- */
-#cameraOpen{color:#b6e8dc}
 .captureDialog{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;background:#03070d;color:#fff;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
 .captureDialog.hidden{display:none!important}
 .captureTop{height:58px;display:grid;grid-template-columns:48px 1fr 48px;align-items:center;text-align:center;padding:0 12px;background:#050b12cc;z-index:2}
@@ -681,3 +670,63 @@ body.callBarOn #home{padding-top:1rem}
 
 /* شريط "غير متصل" */
 #lrOfflineBar{position:fixed;top:0;left:0;right:0;z-index:60;padding:calc(env(safe-area-inset-top,0px) + 6px) 12px 6px;text-align:center;font-size:12.5px;font-weight:600;color:#fff;background:rgba(160,90,10,.94);pointer-events:none}
+
+
+/* ---------- 1.15.0: الرسائل الصوتية + شريط الكتابة ---------- */
+.composer{position:relative;z-index:5}
+.composer .send{display:none}
+.composer.hasText .send{display:grid}
+.composer.hasText .recordControl{display:none}
+.recordControl{position:relative;display:flex;align-items:center;justify-content:center;flex:none;width:48px;height:48px}
+.recordBtn{background:linear-gradient(135deg,var(--g),var(--g2))!important;border:0!important;width:48px!important;height:48px!important;border-radius:50%!important;padding:0!important;color:var(--gink)!important;box-shadow:0 6px 20px #22d8ae45;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;transition:transform .16s var(--ease)}
+.recordBtn>.uiIcon{width:24px;height:24px}
+.composer.vrec:not(.vlock) .recordBtn{transform:translateY(-6px) scale(1.4);z-index:2}
+.composer.vrec .pill{display:none}
+.voiceBar{flex:1;min-width:0}
+.voiceBar.hidden{display:none}
+.vbDot{flex:none;width:10px;height:10px;border-radius:50%;background:#ff4d5a;animation:recordPulse 1s ease-in-out infinite}
+.voiceBar.paused .vbDot{animation:none;opacity:.35}
+.vbTime{font-variant-numeric:tabular-nums;font-size:.95rem;color:var(--text);flex:none;direction:ltr}
+.vbHold{display:flex;align-items:center;gap:.6rem;height:48px;padding:0 1rem;border-radius:28px;background:#0d1f3be6;border:1px solid var(--line);box-shadow:var(--shadow-s);overflow:hidden}
+.vbHint{flex:1;display:flex;align-items:center;justify-content:center;gap:.25rem;color:var(--mute);font-size:.92rem;white-space:nowrap;will-change:transform,opacity}
+.vbHint .uiIcon{width:18px;height:18px}
+html[dir=ltr] .vbHint .uiIcon{transform:scaleX(-1)}
+.vbLocked{display:none}
+.composer.vlock .vbHold{display:none}
+.composer.vlock .vbLocked{display:grid;gap:.55rem;padding:.65rem .75rem;border-radius:26px;background:#0b1a33f2;border:1px solid var(--line);box-shadow:var(--shadow-s)}
+.composer.vlock .recordControl,.composer.vlock .send{display:none!important}
+.vbWave{display:flex;align-items:center;gap:.6rem;height:34px}
+.vbWave canvas{flex:1;min-width:0;height:30px;width:100%}
+.vbRow{display:flex;align-items:center;gap:.6rem}
+.vbTrash,.vbSendBtn{flex:none;width:48px;height:48px;border-radius:50%;padding:0;border:0;display:grid;place-items:center}
+.vbTrash{background:#3a1620;color:#ff7b86}
+.vbTrash .uiIcon,.vbSendBtn .uiIcon{width:22px;height:22px}
+.vbSendBtn{background:linear-gradient(135deg,var(--g),var(--g2));color:var(--gink);transform:scaleX(-1);box-shadow:0 6px 20px #22d8ae45}
+html[dir=ltr] .vbSendBtn{transform:none}
+.vbPausePill{flex:1;height:48px;border-radius:28px;display:flex;align-items:center;justify-content:center;gap:.55rem;background:#13294a;border:1px solid var(--line);color:var(--text)}
+.vbPausePill .uiIcon{width:18px;height:18px}
+.voiceLock{display:none;position:absolute;bottom:calc(100% + 30px);left:50%;margin-left:-20px;width:40px;padding:.55rem 0 .35rem;border-radius:22px;flex-direction:column;align-items:center;gap:2px;background:#0d1f3bf5;border:1px solid var(--line2);color:#d7e8f5;box-shadow:var(--shadow-s);pointer-events:none}
+.voiceLock .uiIcon{width:20px;height:20px}
+.voiceLock .vlChev{width:16px;height:16px;opacity:.7;animation:lockHint 1s ease-in-out infinite}
+.composer.vrec:not(.vlock) .voiceLock{display:flex}
+@keyframes lockHint{50%{transform:translateY(-3px);opacity:.35}}
+
+/* فقاعة الرسالة الصوتية */
+.voiceMessage{display:flex;align-items:center;gap:.45rem;min-width:min(250px,64vw);padding:.1rem 0}
+.vmSide{position:relative;flex:none;width:46px;height:46px;display:grid;place-items:center}
+.vmAv{position:absolute;inset:0;border-radius:50%;background:#1d3a5c center/cover no-repeat;display:grid;place-items:center;color:#d8e8f4;font-weight:700;overflow:hidden}
+.vmAv .uiIcon{width:22px;height:22px}
+.vmMic{position:absolute;inset-inline-start:-3px;bottom:-3px;width:19px;height:19px;border-radius:50%;display:grid;place-items:center;background:#0a3a39;color:#bff5e6;border:1.5px solid #0f8f80}
+.vmMic .uiIcon{width:11px;height:11px}
+.vmSpeed{display:none;min-width:46px;height:30px;padding:0 .55rem;border:0;border-radius:15px;background:#06232acc;color:#fff;font-weight:700;font-size:.85rem;direction:ltr;touch-action:manipulation}
+.voiceMessage.playing .vmAv,.voiceMessage.playing .vmMic{display:none}
+.voiceMessage.playing .vmSpeed{display:block}
+.vmPlay{flex:none;width:32px;height:40px;padding:0;border:0;border-radius:0;background:none;color:#b8c5cc;display:grid;place-items:center;touch-action:manipulation;transition:color .2s}
+.vmPlay .uiIcon{width:27px;height:27px}
+.voiceMessage.played .vmPlay{color:#53bdeb}
+.vmBody{flex:1;min-width:0;display:grid;gap:2px}
+.vmWave{position:relative;display:flex;align-items:center;gap:1.5px;height:30px;min-width:0;padding:0 6px;direction:ltr;touch-action:none;cursor:pointer}
+.vmWave>i:not(.vmDot){flex:1 1 0;min-width:1px;max-width:4px;border-radius:2px;background:#ffffff59;transition:background .12s}
+.vmWave>i.on{background:#fff}
+.vmDot{position:absolute;top:50%;left:calc(6px + (100% - 12px) * var(--p,0));width:13px;height:13px;margin-top:-6.5px;transform:translateX(-50%);border-radius:50%;background:#fff;box-shadow:0 1px 4px #0007;pointer-events:none}
+.vmDur{font-size:.7rem;line-height:1;color:#ffffffb8;direction:ltr;text-align:start;padding-inline-start:6px}

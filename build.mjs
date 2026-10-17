@@ -6,7 +6,11 @@ const VERSION = JSON.parse(readFileSync('package.json', 'utf8')).version;
 // السيرفر محتاج يعرف رقم الإصدار عشان يبعت إشعار "فيه تحديث" بعد النشر.
 writeFileSync('src/version.js', `export const APP_VERSION = ${JSON.stringify(VERSION)};\n`);
 const o = { minify: true, charset: 'utf8', logLevel: 'warning' };
-await build({ ...o, entryPoints: ['web/app.js'], outfile: 'public/app.js', target: 'es2020' });
+// voice.js بيتحط جوه نفس الـ closure بتاع app.js (قبل قفلته) عشان يشوف متغيراته (t, u, Pe, Ee, ...).
+const APP_SRC = readFileSync('web/app.js', 'utf8'), APP_END = '\n})();})();\n';
+if (APP_SRC.split(APP_END).length !== 2) throw new Error('build: مش لاقي نهاية app.js الوحيدة اللي هيتحط قبلها voice.js');
+const APP_MERGED = APP_SRC.replace(APP_END, () => '\n' + readFileSync('web/voice.js', 'utf8') + APP_END);
+await build({ ...o, stdin: { contents: APP_MERGED, loader: 'js', sourcefile: 'web/app.js' }, outfile: 'public/app.js', target: 'es2020' });
 await build({ ...o, entryPoints: ['web/style.css'], outfile: 'public/style.css' });
 writeFileSync('public/index.html', readFileSync('web/index.html', 'utf8').replaceAll('{{APP_VERSION}}', VERSION).replace(/>\s+</g, '><').replace(/\s*\n\s*/g, ' ').trim());
 
