@@ -14,7 +14,7 @@
     no: ['مفيش مخرج صوت تاني متاح، أو المتصفح ما بيسمحش بالتحويل. استخدم أزرار الصوت في الموبايل.', 'No other audio output is available, or the browser does not allow switching. Use your phone’s sound controls.'],
   };
   const tr = (k) => TXT[k][en() ? 1 : 0];
-  let cur = { kind: 'spk', id: '', label: '' }, busy = false, toastEl = null, toastT = 0, menu = null;
+  let cur = { kind: 'spk', id: '', label: '' }, soft = false, busy = false, toastEl = null, toastT = 0, menu = null;
 
   function toast(msg) {
     if (!toastEl) { toastEl = document.createElement('div'); toastEl.className = 'lrToast'; toastEl.setAttribute('role', 'status'); document.body.appendChild(toastEl); }
@@ -53,20 +53,28 @@
   }
   const hideMenu = () => { menu && menu.remove(); menu = null; };
 
+  // الكروم على أندرويد مبيعرضش سماعة الأذن كمخرج صوت، فلو مفيش مخرجين حقيقيين بنبدّل بين
+  // "مكبر الصوت" (صوت كامل) و"سماعة الأذن" (صوت هادي للسمع من قريب). ده تقليد للوضع مش تحويل حقيقي للمخرج.
+  function softToggle() {
+    soft = !soft;
+    try { vid.volume = soft ? 0.3 : 1; } catch {}
+    cur = soft ? { kind: 'ear', id: 'soft', label: '' } : { kind: 'spk', id: '', label: '' };
+    render();
+  }
   async function next() {
     if (busy) return; busy = true;
     const opts = await options();
-    if (opts.length < 2) { busy = false; return toast(tr('no')); }
+    if (opts.length < 2) { busy = false; return softToggle(); }
     let i = opts.findIndex((o) => o.id === cur.id && o.kind === cur.kind);
     if (i < 0) i = 0; // الوضع الافتراضي = مكبر الصوت (أول اختيار)
     const o = opts[(i + 1) % opts.length];
     const ok = await apply(o); busy = false;
-    if (!ok) toast(tr('no'));
+    if (!ok) softToggle();
   }
   async function pick() {
     hideMenu();
     const opts = await options();
-    if (opts.length < 2) return toast(tr('no'));
+    if (opts.length < 2) return softToggle();
     menu = document.createElement('div'); menu.className = 'lrMenu';
     for (const o of opts) {
       const b = document.createElement('button'); b.type = 'button';
@@ -94,7 +102,8 @@
     if (hidden === wasHidden) return;
     wasHidden = hidden;
     if (hidden) {
-      cur = { kind: 'spk', id: '', label: '' }; hideMenu();
+      cur = { kind: 'spk', id: '', label: '' }; soft = false; hideMenu();
+      try { vid.volume = 1; } catch {}
       try { vid.setSinkId?.('')?.catch?.(() => {}); } catch {}
     }
     render(); // بيتنادى عند الفتح والقفل بس (مش مع كل تغيير class تاني)، فمفيش حلقة مع مترجم التطبيق

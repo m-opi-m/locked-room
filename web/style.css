@@ -868,3 +868,10 @@ html[dir=ltr] .vbSendBtn{transform:none}
 .lrfBar{height:4px;border-radius:3px;background:rgba(255,255,255,.2);overflow:hidden}
 .lrfBar i{display:block;height:100%;background:#2fd6a3;transition:width .25s}
 .lrfFail button{flex:none;border:0;border-radius:999px;padding:6px 12px;background:#ff6b6b;color:#fff;font:inherit;font-size:.78rem}
+
+/* 1.19: عدّاد الرسايل الجديدة على كارت المحادثة */
+.roomUnread{flex:none;min-width:24px;height:24px;padding:0 7px;border-radius:12px;background:var(--g);color:var(--gink);font-size:.78rem;font-weight:800;display:grid;place-items:center;line-height:1;box-shadow:0 2px 8px #0005}
+.roomCard.hasUnread .roomInfo strong{color:#fff}
+.roomCard.hasUnread .roomInfo small{color:#e6fbff}
+/* زر مكبر الصوت: لما يكون شغّال يتعلّم بوضوح */
+#call #speakerBtn.isOn .controlIcon,#call.vmode #speakerBtn.isOn .controlIcon{background:#fff;color:#1c58c6}

@@ -444,7 +444,7 @@ async function handle(req, url, env, did) {
     return json(url, { sessions: await account(env, s.sub).sessionLog() });
   }
 
-  const POSTS = ['/api/setup', '/api/recover/send', '/api/recover/verify', '/api/recover/wipe', '/api/login', '/api/reset', '/api/ack', '/api/notme', '/api/login-request/respond', '/api/change-password', '/api/room-password/check', '/api/room/status', '/api/room/delete', '/api/turn', '/api/vault', '/api/push/subscribe', '/api/push/unsubscribe', '/api/fcm/register', '/api/fcm/unregister', '/auth/logout'];
+  const POSTS = ['/api/setup', '/api/recover/send', '/api/recover/verify', '/api/recover/wipe', '/api/login', '/api/reset', '/api/ack', '/api/notme', '/api/login-request/respond', '/api/change-password', '/api/room-password/check', '/api/room/status', '/api/room/delete', '/api/turn', '/api/vault', '/api/inbox', '/api/push/subscribe', '/api/push/unsubscribe', '/api/fcm/register', '/api/fcm/unregister', '/auth/logout'];
   if (req.method === 'POST' && POSTS.includes(path)) {
     if (req.headers.get('Origin') !== url.origin) return json(url, { e: 'forbidden' }, 403);
     if (path === '/auth/logout') {
@@ -506,6 +506,16 @@ async function handle(req, url, env, did) {
       if (body && body.op === 'check') return json(url, { ok: typeof body.pw === 'string' && await acc.matchesPassword(s.v, did, body.pw) });
       if (body && body.op === 'put' && b64(body.salt, 64) && b64(body.iv, 64) && b64(body.ct, 90000)) { await acc.vaultPut({ salt: body.salt, iv: body.iv, ct: body.ct, t: Date.now() }); return json(url, { ok: true }); }
       return json(url, { e: 'invalid' }, 400);
+    }
+    if (path === '/api/inbox') {
+      // الجهاز أونلاين: بنعلّم رسايل الغرف "وصلت" وبنرجّع عدد الرسايل الجديدة لكل غرفة (من غير ما نفتح الشات). المحتوى مشفّر فمبنقراش منه حاجة.
+      if (!mine || !st.ok) return json(url, { e: 'session' }, 401);
+      const body = await readBody(req, 8000);
+      const rooms = body && Array.isArray(body.rooms) ? [...new Set(body.rooms.filter((r) => typeof r === 'string' && /^[0-9a-f]{64}$/.test(r)))].slice(0, 60) : [];
+      await acc.touch(s.v, did);
+      const unread = {};
+      await Promise.all(rooms.map(async (r) => { try { const x = await env.ROOM.get(env.ROOM.idFromName(r)).inbox(did); if (x) unread[r] = x.n; } catch {} }));
+      return json(url, { unread });
     }
     if (path === '/api/push/subscribe' || path === '/api/push/unsubscribe') {
       if (!mine || !st.ok) return json(url,{e:'session'},401);
@@ -1195,6 +1205,28 @@ export class Room extends DurableObject {
         } catch {}
       }
     }
+  }
+
+  // عدد الرسايل الجديدة من الطرف التاني (لحد 100) + تعليم اللي لسه ما وصلتش إنها وصلت. للأعضاء بس.
+  async inbox(did) {
+    if (await this.ctx.storage.get('deleted')) return null;
+    const members = await this.ctx.storage.get('members') || {};
+    if (!members[did]) return null;
+    const count = await this.ctx.storage.get('historyCount') || 0;
+    let n = 0, stop = false;
+    for (let hi = count; hi > 0 && !stop; hi -= 64) {
+      const lo = Math.max(0, hi - 64), keys = [];
+      for (let i = hi - 1; i >= lo; i--) keys.push('history:' + i);
+      const got = await this.ctx.storage.get(keys);
+      for (let i = hi - 1; i >= lo; i--) {
+        const item = got.get('history:' + i);
+        if (!item || !item.mid || item.fromDid === did) continue;
+        if (!item.delivered) { const u = await this.setReceipt(item.mid, 'delivered'); if (u) this.notifyReceipt(u, item.mid, 'delivered'); }
+        if (item.read || item.opened === true) { stop = true; break; } // اللي قبلها اتقرى
+        if (++n >= 100) { stop = true; break; }
+      }
+    }
+    return { n };
   }
 
   async syncReceipts(senderDid) {
