@@ -5,7 +5,7 @@ import { APP_VERSION } from './version.js';
 import { peerOf, semverGt, updatePayload } from './push-util.js';
 import { fcmConfigured, validFcmToken, sendFcm } from './fcm.js';
 
-const PAGES = new Set(['/', '/app.js', '/style.css', '/logo.png', '/app-icon.png', '/apple-touch-icon.png', '/icon-192.png', '/badge-96.png', '/sw.js', '/gallery-editor.js', '/heic.js']);
+const PAGES = new Set(['/', '/app.js', '/style.css', '/logo.png', '/app-icon.png', '/apple-touch-icon.png', '/icon-192.png', '/badge-96.png', '/sw.js', '/gallery-editor.js', '/heic.js', '/admin', '/admin.js', '/admin.css']);
 const knockPayload = (ar, at, rid) => ({ at: at || Date.now(), rid: typeof rid === 'string' && /^[0-9a-f]{64}$/.test(rid) ? rid : '', title: ar ? 'غرفة مقفولة' : 'Locked Room', body: ar ? 'هناك من يطرق الباب' : 'Someone is knocking at the door', lang: ar ? 'ar' : 'en', dir: ar ? 'rtl' : 'ltr', icon: '/icon-192.png', badge: '/badge-96.png', tag: 'locked-room-knock-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url: '/' });
 const MAX_MSG = 6 * 1024 * 1024;
 const SESSION_DAYS = 7;          // مدة بقاء المستخدم داخل بعد ما يكتب الباسورد
@@ -308,16 +308,17 @@ async function smtpSend(env, to, subject, text, html, connectFn = connect) {
 
 // بيبعت الكود: لو GMAIL_USER + GMAIL_APP_PASSWORD موجودين بيبعت من جيميلك، وإلا بيستخدم Resend (RESEND_API_KEY)
 const mailReady = (env) => !!((env.GMAIL_USER && env.GMAIL_APP_PASSWORD) || env.RESEND_API_KEY);
-async function sendRecoveryMail(env, to, code, device, loc, connectFn) {
+async function sendRecoveryMail(env, to, code, device, loc, connectFn, kind) {
   const esc = (x) => String(x || '').replace(/[<>&"]/g, '');
-  const subject = 'كود استعادة الحساب - غرفة مقفولة';
+  const adm = kind === 'admin';
+  const subject = adm ? 'كود دخول الأدمن - غرفة مقفولة' : 'كود استعادة الحساب - غرفة مقفولة';
   const html = `<div dir="rtl" style="font-family:Arial,sans-serif;max-width:420px;margin:auto;padding:16px">
 <h2>غرفة مقفولة 🔒</h2>
-<p>كود استعادة الحساب:</p>
+<p>${adm ? 'كود الأدمن:' : 'كود استعادة الحساب:'}</p>
 <p style="font-size:34px;letter-spacing:8px;font-weight:bold;direction:ltr;text-align:center;background:#f1f5f4;border-radius:12px;padding:12px">${code}</p>
-<p>صالح 10 دقايق. بعد ما تكتبه هتقدر تدخل بالباسورد، أو تمسح بيانات الحساب وتعمل باسورد جديد.</p>
+<p>${adm ? 'صالح 10 دقايق. اكتبه في صفحة الأدمن عشان تغيّر الرقم السري.' : 'صالح 10 دقايق. بعد ما تكتبه هتقدر تدخل بالباسورد، أو تمسح بيانات الحساب وتعمل باسورد جديد.'}</p>
 <p style="color:#666;font-size:13px">الجهاز اللي طلب الكود: ${esc(device)}${loc ? ' · ' + esc(loc) : ''}<br>لو مش أنت اللي طلبته، تجاهل الرسالة دي ولا تدّي الكود لأي حد.</p></div>`;
-  const text = `كود استعادة الحساب: ${code}\nصالح 10 دقايق. الجهاز الطالب: ${device}${loc ? ' · ' + loc : ''}\nلو مش أنت، تجاهل الرسالة.`;
+  const text = `${adm ? 'كود الأدمن' : 'كود استعادة الحساب'}: ${code}\nصالح 10 دقايق. الجهاز الطالب: ${device}${loc ? ' · ' + loc : ''}\nلو مش أنت، تجاهل الرسالة.`;
   try {
     if (env.GMAIL_USER && env.GMAIL_APP_PASSWORD) return await smtpSend(env, to, subject, text, html, connectFn);
     const r = await fetch('https://api.resend.com/emails', {
@@ -415,6 +416,9 @@ async function handle(req, url, env, did) {
   if (path === '/auth/callback' && req.method === 'GET') return googleCallback(req, url, env, did);
 
   if (path === '/api/push/key' && req.method === 'GET') return env.VAPID_PUBLIC_KEY ? json(url,{key:env.VAPID_PUBLIC_KEY}) : json(url,{e:'push_not_configured'},503);
+
+  // ---------- صفحة الأدمن (/admin) — محمية بـ ADMIN_TOKEN (wrangler secret put ADMIN_TOKEN) ----------
+  if (path === '/api/admin' && req.method === 'POST') return adminApi(req, url, env, did);
 
   if (path === '/api/me' && req.method === 'GET') {
     const s = await readSession(req, url, env);
@@ -645,17 +649,121 @@ async function handle(req, url, env, did) {
     return json(url, { e: 'wrong', left: r.left }, 401);
   }
 
+  if (path.startsWith('/admin') && !(await isAdmin(req, url, env, did))) return new Response('Not found', { status: 404 });
   if (req.method !== 'GET' || !PAGES.has(path)) return new Response('Not found', { status: 404 });
-  const res = await env.ASSETS.fetch(new Request(new URL(path, url)));
+  const res = await env.ASSETS.fetch(new Request(new URL(path === '/admin' ? '/admin/' : path, url)));
   const headers = secHeaders(url, res.headers.get('Content-Type') || 'text/plain');
   if (path === '/app.js' || path === '/style.css' || path === '/gallery-editor.js') headers['Cache-Control'] = 'no-cache';
-  else if (path !== '/' && path !== '/sw.js') headers['Cache-Control'] = 'public, max-age=3600, stale-while-revalidate=86400';
+  else if (path !== '/' && path !== '/sw.js' && !path.startsWith('/admin')) headers['Cache-Control'] = 'public, max-age=3600, stale-while-revalidate=86400';
   return new Response(res.body, { status: res.status, headers });
 }
 
 // ---------- الحساب: كل مستخدم Durable Object لوحده (هاش الباسورد + الجهاز الحالي + الأجهزة المحظورة) ----------
 // cur = الجهاز اللي معاه الحساب دلوقتي { v: رقم الجلسة, d: معرّف الجهاز, n: اسمه, l: مكانه, t: وقت الدخول }
 // blocked = [{ d, n, t }] أجهزة ممنوعة نهائياً من الحساب ده
+// ---------- الأدمن: بيعرض الغرف (من غير أي محتوى — الرسايل مشفّرة) ويقدر يفصل الاتصالات ويمسح غرفة ----------
+// الدخول: (1) جلسة التطبيق الكاملة بإيميل جوجل = ADMIN_EMAIL، (2) تكتب الإيميل في خانة "دخول بكود" فتروح لـ /admin، (3) رقم سري للأدمن:
+// أول مرة ADMIN_TOKEN (مؤقت، اختياري)، وبعدها بتغيّره بكود بيجي على الإيميل. كوكي `adm` (30 دقيقة) = وضع الأدمن، و"خروج" بيمسحه.
+// أي حد تاني بياخد 404 (مفيش دليل إن الصفحة موجودة).
+const ROOM_KEY = /^[0-9a-f]{64}$/;
+const ADMIN_MIN = 30 * 60;
+const adminSession = async (req, url, env, did) => {
+  const list = String(env.ADMIN_EMAIL || '').toLowerCase().split(',').map((x) => x.trim()).filter(Boolean);
+  if (!list.length) return null;
+  const s = await readSession(req, url, env);
+  if (!s || !s.ok || !s.v || s.did !== did || typeof s.email !== 'string' || !list.includes(s.email.toLowerCase())) return null;
+  try { const st = await account(env, s.sub).state(s.v, did); return st.ok && !st.blocked ? s : null; } catch { return null; }
+};
+async function isAdmin(req, url, env, did) { return !!(await adminSession(req, url, env, did)); }
+async function adminAuthed(req, url, env, s) { // كوكي وضع الأدمن صالح ومربوط بنفس الحساب والجهاز
+  try {
+    const [body, sig] = getCookie(req, url, 'adm').split('.');
+    if (!body || !sig || !(await crypto.subtle.verify('HMAC', await hmacKey(env, 'verify'), unb64u(sig), enc.encode(body)))) return false;
+    const a = JSON.parse(new TextDecoder().decode(unb64u(body)));
+    return a.adm === 1 && a.sub === s.sub && a.did === s.did && a.exp > Date.now();
+  } catch { return false; }
+}
+const admCookie = async (url, env, s) => setCookie(url, 'adm', await signSession(env, { adm: 1, sub: s.sub, did: s.did, exp: Date.now() + ADMIN_MIN * 1000 }), ADMIN_MIN);
+async function adminPwHash(pw, salt, iter) {
+  const k = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveBits']);
+  return b64u(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: iter }, k, 256));
+}
+const sha256 = async (x) => new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(x)));
+async function adminApi(req, url, env, did) {
+  const sess = await adminSession(req, url, env, did);
+  if (!sess) return new Response('Not found', { status: 404 });
+  if (req.headers.get('Origin') !== url.origin) return json(url, { e: 'forbidden' }, 403);
+  const registry = env.ROOM_PASSWORDS.get(env.ROOM_PASSWORDS.idFromName('global'));
+  const body = await readBody(req);
+  if (!body || typeof body.op !== 'string') return json(url, { e: 'bad_request' }, 400);
+  const op = body.op;
+  const authed = await adminAuthed(req, url, env, sess);
+  const hasTemp = !!(env.ADMIN_TOKEN && String(env.ADMIN_TOKEN).length >= 8);
+
+  if (op === 'enter') { // الإيميل اللي اتكتب في خانة الكود لازم يطابق إيميل جلستك
+    return String(body.email || '').trim().toLowerCase() === sess.email.toLowerCase() ? json(url, { ok: true }) : new Response('Not found', { status: 404 });
+  }
+  if (op === 'status') return json(url, { ok: true, authed, hasPw: hasTemp || !!(await registry.adminPwGet()), mail: mailReady(env), version: APP_VERSION });
+  if (op === 'exit') return json(url, { ok: true }, 200, [setCookie(url, 'adm', '', 0)]);
+
+  if (op === 'login') {
+    const lock = await registry.adminLocked();
+    if (lock) return json(url, { e: 'locked', wait: lock }, 429);
+    const given = typeof body.pw === 'string' ? body.pw.slice(0, 200) : '';
+    const rec = await registry.adminPwGet();
+    let ok = false;
+    if (given) {
+      if (rec) ok = same(unb64u(await adminPwHash(given, unb64u(rec.s), rec.i)), unb64u(rec.h));
+      else if (hasTemp) ok = same(await sha256(given), await sha256(String(env.ADMIN_TOKEN)));
+    }
+    if (!ok) { await registry.adminFailed(); return json(url, { e: 'wrong' }, 401); }
+    await registry.adminOk();
+    return json(url, { ok: true }, 200, [await admCookie(url, env, sess)]);
+  }
+
+  if (op === 'sendcode') { // كود 6 أرقام على إيميل الأدمن (للتغيير أو لو نسيت الرقم السري)
+    if (!mailReady(env)) return json(url, { e: 'mail_not_configured' }, 503);
+    const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
+    const set = await registry.adminCodeSet(b64u(await sha256(`${env.SESSION_SECRET}:admin:${code}`)));
+    if (set.wait) return json(url, { e: 'wait', wait: set.wait }, 429);
+    const sent = await sendRecoveryMail(env, sess.email, code, deviceName(req), deviceLoc(req), undefined, 'admin');
+    if (!sent) return json(url, { e: 'send_failed' }, 502);
+    return json(url, { ok: true });
+  }
+  if (op === 'setpw') {
+    const pw = typeof body.pw === 'string' ? body.pw : '';
+    if (pw.length < 8 || pw.length > 200) return json(url, { e: 'weak' }, 400);
+    const code = String(body.code || '').replace(/\D/g, '').slice(0, 6);
+    const r = code.length === 6 ? await registry.adminCodeCheck(b64u(await sha256(`${env.SESSION_SECRET}:admin:${code}`))) : false;
+    if (!r) return json(url, { e: 'bad_code' }, 400);
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    await registry.adminPwSet({ s: b64u(salt), h: await adminPwHash(pw, salt, PBKDF2_ITER), i: PBKDF2_ITER });
+    await registry.adminOk();
+    return json(url, { ok: true }, 200, [await admCookie(url, env, sess)]);
+  }
+
+  if (!authed) return json(url, { e: 'auth' }, 401); // باقي العمليات لازم تكون في وضع الأدمن
+  const room = (key) => env.ROOM.get(env.ROOM.idFromString(key));
+  const info = async (key) => { try { return { key, ...(await room(key).adminInfo()) }; } catch { return { key, error: true, sockets: [] }; } };
+  if (op === 'rooms') {
+    const cursor = typeof body.cursor === 'string' && ROOM_KEY.test(body.cursor) ? body.cursor : '';
+    const page = await registry.listRooms(cursor, 50);
+    return json(url, { ok: true, version: APP_VERSION, rooms: await Promise.all(page.keys.map(info)), next: page.next, total: page.total });
+  }
+  const key = typeof body.key === 'string' ? body.key : '';
+  if (!ROOM_KEY.test(key)) return json(url, { e: 'bad_key' }, 400);
+  if (op === 'kick') {
+    const n = await room(key).adminKick(typeof body.d === 'string' ? body.d.slice(0, 8) : '');
+    return json(url, { ok: true, kicked: n, room: await info(key) });
+  }
+  if (op === 'delete') {
+    await room(key).deleteRoom();
+    await registry.purgeRoom(key);
+    return json(url, { ok: true });
+  }
+  return json(url, { e: 'unknown_op' }, 400);
+}
+
 async function claim(storage, did, n, l) {
   const now = Date.now(), v = rand(18), id = rand(12);
   const cur = await storage.get('cur');
@@ -1032,13 +1140,20 @@ export class Room extends DurableObject {
     if (!sub || !v || !d) return new Response('Unauthorized', { status: 401 });
     if (await this.ctx.storage.get('deleted')) return new Response('Gone', { status: 410 });
     const { 0: client, 1: server } = new WebSocketPair();
-    if (this.ctx.getWebSockets().length >= 2) {
+    // اتصال قديم ميت من نفس الحساب (نت قطع / التطبيق راح في الخلفية) كان بيتعدّ شخص تاني فالاتصال الجديد يترفض بـ "full".
+    // أي اتصال قديم لنفس الحساب بيتقفل ويتبدّل بالجديد (4000 = العميل القديم ما يعيدش الاتصال).
+    const stale = new Set();
+    for (const old of this.ctx.getWebSockets()) {
+      const oa = old.deserializeAttachment();
+      if (oa && (oa.d === d || oa.sub === sub)) { stale.add(old); try { old.close(4000, 'replaced'); } catch {} }
+    }
+    if (this.ctx.getWebSockets().filter((w) => !stale.has(w)).length >= 2) {
       server.accept(); server.send(JSON.stringify({ t: 'full' })); server.close(1008, 'full');
       return new Response(null, { status: 101, webSocket: client });
     }
     this.ctx.acceptWebSocket(server);
     const language = req.headers.get('Accept-Language') || 'en';
-    server.serializeAttachment({ c: 0, reset: Date.now() + 10000, sub, v, d, language, rid: req.headers.get('X-Room-Id') || '', ok: true, until: Date.now() + 3000 });
+    server.serializeAttachment({ c: 0, at: Date.now(), reset: Date.now() + 10000, sub, v, d, language, rid: req.headers.get('X-Room-Id') || '', ok: true, until: Date.now() + 3000 });
     const members = await this.ctx.storage.get('members') || {};
     members[d] = { sub, d, language, t: Date.now() };
     await this.ctx.storage.put('members', members);
@@ -1331,6 +1446,27 @@ export class Room extends DurableObject {
     return true;
   }
 
+  // للأدمن: حالة الغرفة من غير محتوى (عدد الرسايل + الاتصالات المفتوحة دلوقتي)
+  async adminInfo() {
+    const members = await this.ctx.storage.get('members') || {};
+    return {
+      deleted: !!(await this.ctx.storage.get('deleted')),
+      messages: await this.ctx.storage.get('historyCount') || 0,
+      members: Object.keys(members).length,
+      sockets: this.ctx.getWebSockets().map((ws) => { const a = ws.deserializeAttachment() || {}; return { d: String(a.d || '').slice(0, 8), lang: String(a.language || '').slice(0, 5), at: a.at || 0 }; }),
+    };
+  }
+  // للأدمن: فصل اتصال معيّن (أول حروف معرّف الجهاز) أو كل الاتصالات. العميل بيعيد الاتصال لوحده (1012).
+  async adminKick(d) {
+    let n = 0;
+    for (const ws of this.ctx.getWebSockets()) {
+      const a = ws.deserializeAttachment() || {};
+      if (d && !String(a.d || '').startsWith(d)) continue;
+      try { ws.close(1012, 'admin'); n++; } catch {}
+    }
+    return n;
+  }
+
   webSocketClose(ws) { this.left(ws); }
   webSocketError(ws) { this.left(ws); }
   left(ws) {
@@ -1364,6 +1500,49 @@ export class RoomPasswords extends DurableObject {
       return await this.ctx.storage.get('pushSubs') || [];
     });
   }
+  // للأدمن: قايمة الغرف الفعّالة (صفحات) + قفل مؤقت بعد محاولات توكن غلط
+  async listRooms(cursor, limit) {
+    const opt = { prefix: 'room:', limit };
+    if (cursor) opt.startAfter = 'room:' + cursor;
+    const got = await this.ctx.storage.list(opt);
+    const keys = [...got.keys()].map((k) => k.slice(5));
+    const total = (await this.ctx.storage.list({ prefix: 'room:' })).size;
+    return { keys, total, next: keys.length === limit ? keys[keys.length - 1] : '' };
+  }
+  async adminLocked() {
+    const f = await this.ctx.storage.get('adminFail');
+    return f && f.until > Date.now() ? Math.ceil((f.until - Date.now()) / 1000) : 0;
+  }
+  async adminFailed() {
+    return this.ctx.blockConcurrencyWhile(async () => {
+      const f = await this.ctx.storage.get('adminFail') || { n: 0, until: 0 };
+      f.n++;
+      if (f.n >= 5) { f.until = Date.now() + 15 * 60000; f.n = 0; }
+      await this.ctx.storage.put('adminFail', f);
+    });
+  }
+  async adminPwGet() { return (await this.ctx.storage.get('adminPw')) || null; }
+  async adminPwSet(rec) { await this.ctx.storage.put('adminPw', rec); await this.ctx.storage.delete('adminCode'); return true; }
+  // كود الإيميل: صالح 10 دقايق، 5 محاولات، وإعادة إرسال بعد 60 ثانية
+  async adminCodeSet(hash) {
+    return this.ctx.blockConcurrencyWhile(async () => {
+      const c = await this.ctx.storage.get('adminCode'), now = Date.now();
+      if (c && now - c.at < 60000) return { wait: Math.ceil((60000 - (now - c.at)) / 1000) };
+      await this.ctx.storage.put('adminCode', { h: hash, exp: now + 600000, n: 0, at: now });
+      return { ok: true };
+    });
+  }
+  async adminCodeCheck(hash) {
+    return this.ctx.blockConcurrencyWhile(async () => {
+      const c = await this.ctx.storage.get('adminCode');
+      if (!c || c.exp < Date.now()) return false;
+      if (c.h === hash) return true;
+      c.n++;
+      if (c.n >= 5) await this.ctx.storage.delete('adminCode'); else await this.ctx.storage.put('adminCode', c);
+      return false;
+    });
+  }
+  async adminOk() { if (await this.ctx.storage.get('adminFail')) await this.ctx.storage.delete('adminFail'); }
   async isUsed(fingerprint) { return !!(await this.ctx.storage.get('pw:' + fingerprint)); }
   async isActive(roomId) {
     return !(await this.ctx.storage.get('deleted:' + roomId)) && !!(await this.ctx.storage.get('room:' + roomId));
