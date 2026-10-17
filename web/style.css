@@ -447,6 +447,25 @@ body.callBarOn #chat{height:calc(100vh - 52px - env(safe-area-inset-top,0px));he
 body.callBarOn #chat>header{padding-top:.45rem}
 body.callBarOn #home{padding-top:1rem}
 
+/* ---------- الرد على رسالة ---------- */
+.log{overflow-x:hidden}
+.replyBar{flex:0 0 auto;display:flex;align-items:center;gap:.6rem;margin:0 .65rem -.15rem;padding:.45rem .55rem .45rem .7rem;border-radius:18px 18px 6px 6px;background:#0d1f3bf5;border:1px solid var(--line);border-inline-start:4px solid var(--g);box-shadow:var(--shadow-s)}
+.replyBar.hidden{display:none}
+.replyBar .rbBody{flex:1;min-width:0;display:grid;gap:1px}
+.replyBar strong{color:var(--g);font-size:.85rem;font-weight:700}
+.replyBar .rbText{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ffffffb8;font-size:.88rem}
+.replyBar .ic{flex:0 0 auto;width:36px;height:36px}
+.replyQuote{display:grid;gap:1px;margin:0 0 .35rem;padding:.3rem .6rem;border-radius:10px;background:#0000002e;border-inline-start:3px solid var(--g);cursor:pointer;min-width:120px}
+.m.me .replyQuote{border-inline-start-color:#c9fff0;background:#00000038}
+.replyQuote strong{font-size:.78rem;font-weight:700;color:var(--g)}
+.m.me .replyQuote strong{color:#d9fff3}
+.replyQuote span{font-size:.84rem;opacity:.88;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;white-space:normal}
+.m.swiping{position:relative;transition:none}
+.m.swiping::after{content:"";position:absolute;left:-40px;top:50%;width:30px;height:30px;margin-top:-15px;border-radius:50%;background:#22d8ae33 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d9fff3' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 14 4 9l5-5'/%3E%3Cpath d='M20 20v-7a4 4 0 0 0-4-4H4'/%3E%3C/svg%3E") center/18px no-repeat;opacity:var(--swo,0)}
+.m{transition:translate .18s ease}
+.m.flash{animation:replyFlash 1.2s ease}
+@keyframes replyFlash{0%,100%{filter:none}30%{filter:brightness(1.7) saturate(1.3)}}
+
 /* ---------- 10) Camera capture / review ---------- */
 #cameraOpen{color:#b6e8dc}
 .captureDialog{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;background:#03070d;color:#fff;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
