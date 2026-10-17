@@ -92,12 +92,12 @@ ok('إخفاء 7ث: المعاينة ظهرت والشات لسه مفتوح', a
 await A.click('#lrpSend');
 await B.waitForFunction((n) => document.querySelectorAll('#log img').length > n, before + 1, { timeout: 20000 }).catch(() => {});
 ok('إخفاء 7ث: B استلم الصورة', (await imgsB()) === before + 2);
-// 4) من غير معرض: القفل الأمني لسه شغال
+// 4) من غير معرض: من 1.10.0 مفيش قفل تلقائي، الشات بيفضل مفتوح من غير باسورد
 await A.evaluate(() => { Object.defineProperty(document, 'hidden', { get: () => true, configurable: true }); document.dispatchEvent(new Event('visibilitychange')); });
 await A.waitForTimeout(7000);
 await A.evaluate(() => { delete document.hidden; document.dispatchEvent(new Event('visibilitychange')); });
 await A.waitForTimeout(1000);
-ok('القفل الأمني لسه بيقفل بدون معرض', !(await A.locator('#chat').isVisible()));
+ok('من 1.10.0: الإخفاء 7ث مبيقفلش الشات ومبيطلبش باسورد', (await A.locator('#chat').isVisible()) && !(await A.locator('#lock').isVisible()));
 ok('مفيش أخطاء صفحة', A.errs.length === 0 && B.errs.length === 0);
 console.log('errs', A.errs, B.errs);
 await browser.close(); process.exit(fails ? 1 : 0);

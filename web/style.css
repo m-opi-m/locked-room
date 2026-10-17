@@ -423,6 +423,30 @@ body.shield #shield{display:grid}
   .signalMeter{padding:7px 9px;gap:7px;font-size:.7rem}.callTop{padding-inline:16px}
 }
 
+/* ---------- مكالمة مصغّرة: شريط علوي (صوت) أو مربع عايم (فيديو) ---------- */
+.callMiniBar,.callMiniChip{display:none}
+.callMinBtn{width:42px;height:42px;padding:0;border-radius:50%;display:grid;place-items:center;background:#ffffff1c;border:1px solid #ffffff2e;color:#fff;margin-inline-end:10px;flex:0 0 auto;backdrop-filter:blur(14px)}
+.callMinBtn .uiIcon{width:22px;height:22px}
+#call.mini>*:not(.callMiniBar):not(.callMiniChip):not(#remoteVid){display:none!important}
+#call.mini.audio{inset:0 0 auto 0!important;width:auto!important;height:calc(52px + env(safe-area-inset-top,0px))!important;border-radius:0!important;background:linear-gradient(90deg,#0c6a58,#0b4d66);border-bottom:1px solid #ffffff2a;box-shadow:0 6px 24px #0008}
+#call.mini.audio #remoteVid{width:1px;height:1px;inset:auto;opacity:0;pointer-events:none}
+#call.mini.audio .callMiniBar{display:flex;align-items:center;gap:8px;height:100%;padding:env(safe-area-inset-top,0px) 10px 0}
+.miniBody{flex:1;min-width:0;display:flex;align-items:center;gap:10px;background:none;border:0;box-shadow:none;color:#fff;text-align:start;padding:0 6px;font-size:.95rem;height:100%}
+.miniBody strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+.miniBody #miniTime{margin-inline-start:auto;font-variant-numeric:tabular-nums;font-weight:700;letter-spacing:.02em}
+.miniBtn{width:40px;height:40px;border-radius:50%;padding:0;display:grid;place-items:center;background:#ffffff26;border:1px solid #ffffff3a;color:#fff;flex:0 0 auto}
+.miniBtn .uiIcon{width:20px;height:20px}
+.miniBtn.hang{background:#e5484d;border-color:#ff8a92}
+.miniBtn.isOff{background:#ed778b}
+#call.mini:not(.audio){top:calc(env(safe-area-inset-top,0px) + 70px);right:12px;left:auto;bottom:auto;width:112px!important;height:150px!important;border-radius:18px!important;border:1px solid #ffffff66;box-shadow:0 12px 40px #000a;touch-action:none;cursor:grab;z-index:60;user-select:none;-webkit-user-select:none}
+#call.mini:not(.audio) #remoteVid{opacity:1;display:block}
+#call.mini:not(.audio) .callMiniChip{display:block;position:absolute;inset:auto 6px 6px auto;z-index:3;padding:2px 8px;border-radius:999px;background:#000a;color:#fff;font-size:.72rem;font-variant-numeric:tabular-nums;pointer-events:none}
+/* لما الشريط يظهر، المحتوى ينزل تحته */
+body.callBarOn{padding-top:calc(52px + env(safe-area-inset-top,0px));box-sizing:border-box}
+body.callBarOn #chat{height:calc(100vh - 52px - env(safe-area-inset-top,0px));height:calc(100dvh - 52px - env(safe-area-inset-top,0px))}
+body.callBarOn #chat>header{padding-top:.45rem}
+body.callBarOn #home{padding-top:1rem}
+
 /* ---------- 10) Camera capture / review ---------- */
 #cameraOpen{color:#b6e8dc}
 .captureDialog{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;background:#03070d;color:#fff;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}

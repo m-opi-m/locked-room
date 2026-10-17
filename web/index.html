@@ -97,6 +97,7 @@
   <video id="remoteVid" autoplay playsinline></video>
   <div class="callShade"></div>
   <div class="callTop">
+    <button id="callMin" class="callMinBtn" type="button" aria-label="تصغير المكالمة"><svg class="uiIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
     <div class="callIdentity"><span class="liveDot"></span><div><strong id="callPeerLabel">الطرف التاني</strong><small id="callStatus" role="status">بيتصل...</small></div></div>
     <div id="signalMeter" class="signalMeter" data-level="0" aria-label="قوة الإشارة"><span class="signalBars"><i></i><i></i><i></i><i></i></span><span id="signalLabel">جاري القياس</span></div>
   </div>
@@ -106,6 +107,8 @@
     <span id="callElapsed">جاري الاتصال</span>
   </div>
   <video id="localVid" autoplay playsinline muted></video>
+  <div class="callMiniBar"><button id="miniOpen" class="miniBody" type="button" aria-label="فتح المكالمة"><span class="liveDot"></span><strong id="miniName">الطرف التاني</strong><span id="miniTime">00:00</span></button><button id="miniMute" class="miniBtn" type="button" aria-label="كتم الميكروفون"><span id="miniMuteIcon"><svg class="uiIcon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-mic"/></svg></span></button><button id="miniHang" class="miniBtn hang" type="button" aria-label="إنهاء المكالمة"><svg class="uiIcon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg></button></div>
+  <div class="callMiniChip"><span id="miniTime2">00:00</span></div>
   <div class="callControls">
     <button id="muteBtn" class="callControl" type="button"><span class="controlIcon" id="muteIcon"><svg class="uiIcon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-mic"/></svg></span><span id="muteLabel">كتم الميكروفون</span></button>
     <button id="speakerBtn" class="callControl isOn" type="button" aria-pressed="true"><span class="controlIcon" id="speakerIcon"><svg class="uiIcon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-volume"/></svg></span><span id="speakerLabel">مكبر الصوت</span></button>
