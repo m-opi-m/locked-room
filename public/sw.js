@@ -12,8 +12,11 @@ function knockBody(at,lang){
   else day=d.toLocaleDateString(loc,{day:'numeric',month:'short'});
   return ar?'هناك من طرق الباب '+(day?day+' ':'')+'الساعة '+tm:'Someone knocked at the door '+(day?day+' ':'')+'at '+tm;
 }
+// بنسجّل الطرق (رقم الغرفة + الوقت) في IndexedDB عشان التطبيق يعرض صورة اللي طرق في قايمة المحادثات حتى لو كان مقفول.
+function saveKnock(rid,at){return new Promise(res=>{try{const r=indexedDB.open('lr-knocks',1);r.onupgradeneeded=()=>r.result.createObjectStore('k');r.onerror=()=>res();r.onsuccess=()=>{const db=r.result,tx=db.transaction('k','readwrite');tx.objectStore('k').put(at,rid);tx.oncomplete=()=>{db.close();res()};tx.onerror=()=>{db.close();res()}}}catch{res()}})}
 self.addEventListener('push',event=>{
   let d={};try{if(event.data)d=event.data.json()}catch{}
+  if(d.kind!=='update'&&typeof d.rid==='string'&&/^[0-9a-f]{64}$/.test(d.rid)){event.waitUntil(saveKnock(d.rid,d.at||Date.now()).then(()=>self.clients.matchAll({type:'window',includeUncontrolled:true})).then(cs=>cs.forEach(c=>c.postMessage({lrKnock:1}))))}
   if(d.kind==='update'){try{self.registration.update()}catch{}}
   const lang=/^ar/i.test(d.lang||'')?'ar':'en',t=TXT[lang];
   event.waitUntil((async()=>{await self.registration.showNotification(d.title||t.title,{

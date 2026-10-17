@@ -730,3 +730,23 @@ html[dir=ltr] .vbSendBtn{transform:none}
 .vmWave>i.on{background:#fff}
 .vmDot{position:absolute;top:50%;left:calc(6px + (100% - 12px) * var(--p,0));width:13px;height:13px;margin-top:-6.5px;transform:translateX(-50%);border-radius:50%;background:#fff;box-shadow:0 1px 4px #0007;pointer-events:none}
 .vmDur{font-size:.7rem;line-height:1;color:#ffffffb8;direction:ltr;text-align:start;padding-inline-start:6px}
+
+/* ===== 1.16.0: بادج اللي طرق + كارت كود الغرفة ===== */
+.roomCard.hasKnock{border-color:#f5b30188;box-shadow:0 0 0 1px #f5b30133,0 8px 24px #f5b30114}
+.roomKnock{position:relative;width:38px;height:38px;flex:none;margin-inline:.25rem}
+.roomKnockAv{width:38px;height:38px;border-radius:50%;object-fit:cover;display:grid;place-items:center;background:linear-gradient(145deg,#1f9fd4,#17c9a4);color:#fff;font-weight:800;font-size:1rem;border:2px solid #f5b301;box-sizing:border-box}
+.roomKnockAv>.uiIcon{width:1.1em;height:1.1em}
+.roomKnockBell{position:absolute;inset-inline-end:-5px;bottom:-4px;width:19px;height:19px;border-radius:50%;background:#f5b301;color:#201500;display:grid;place-items:center;border:2px solid #0a1a30;box-sizing:border-box;animation:knockRing 1.8s ease-in-out infinite;transform-origin:50% 15%}
+.roomKnockBell>.uiIcon{width:11px;height:11px}
+@keyframes knockRing{0%,60%,100%{transform:rotate(0)}10%{transform:rotate(16deg)}20%{transform:rotate(-14deg)}30%{transform:rotate(10deg)}40%{transform:rotate(-6deg)}}
+.codeCard{display:grid;gap:.6rem;min-width:min(270px,68vw);padding:.2rem .1rem}
+.codeCardHead{display:flex;align-items:center;gap:.45rem;font-weight:800;font-size:.95rem;color:var(--g)}
+.codeCardHead>.uiIcon{width:18px;height:18px}
+.codeCardCode{display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem;direction:ltr}
+.codeCardCode span{font:700 1.02rem/1 ui-monospace,Consolas,monospace;letter-spacing:.08em;text-align:center;padding:.55rem .2rem;border-radius:10px;background:#07152a;border:1px solid var(--gline);color:#eafff9;user-select:all}
+.codeCard .codeCardNote{margin:0;font-size:.78rem;opacity:.75}
+.codeCardActions{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
+.codeCardActions button{display:flex;align-items:center;justify-content:center;gap:.4rem;padding:.55rem .6rem;border-radius:10px;font-weight:700;font-size:.9rem;background:#ffffff14;border:1px solid #ffffff26;color:inherit}
+.codeCardActions button:first-child{background:linear-gradient(135deg,var(--g),var(--g2));color:var(--gink);border-color:transparent}
+.codeCardActions button>.uiIcon{width:16px;height:16px}
+.codeCardSr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}

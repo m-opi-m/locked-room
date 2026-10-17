@@ -38,7 +38,7 @@ async function accessToken(env, fetchFn, now) {
 // data-only عشان onMessageReceived في التطبيق يشتغل وهو في الخلفية. القيم لازم تبقى نصوص.
 export function fcmData(payload) {
   const d = {};
-  for (const k of ['title', 'body', 'kind', 'lang', 'url', 'at']) if (payload && payload[k] != null) d[k] = String(payload[k]);
+  for (const k of ['title', 'body', 'kind', 'lang', 'url', 'at', 'rid']) if (payload && payload[k] != null) d[k] = String(payload[k]);
   return d;
 }
 

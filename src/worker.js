@@ -6,7 +6,7 @@ import { peerOf, semverGt, updatePayload } from './push-util.js';
 import { fcmConfigured, validFcmToken, sendFcm } from './fcm.js';
 
 const PAGES = new Set(['/', '/app.js', '/style.css', '/logo.png', '/app-icon.png', '/apple-touch-icon.png', '/icon-192.png', '/badge-96.png', '/sw.js', '/gallery-editor.js']);
-const knockPayload = (ar, at) => ({ at: at || Date.now(), title: ar ? 'غرفة مقفولة' : 'Locked Room', body: ar ? 'هناك من يطرق الباب' : 'Someone is knocking at the door', lang: ar ? 'ar' : 'en', dir: ar ? 'rtl' : 'ltr', icon: '/icon-192.png', badge: '/badge-96.png', tag: 'locked-room-knock-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url: '/' });
+const knockPayload = (ar, at, rid) => ({ at: at || Date.now(), rid: typeof rid === 'string' && /^[0-9a-f]{64}$/.test(rid) ? rid : '', title: ar ? 'غرفة مقفولة' : 'Locked Room', body: ar ? 'هناك من يطرق الباب' : 'Someone is knocking at the door', lang: ar ? 'ar' : 'en', dir: ar ? 'rtl' : 'ltr', icon: '/icon-192.png', badge: '/badge-96.png', tag: 'locked-room-knock-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url: '/' });
 const MAX_MSG = 6 * 1024 * 1024;
 const SESSION_DAYS = 7;          // مدة بقاء المستخدم داخل بعد ما يكتب الباسورد
 const PENDING_MIN = 15;          // المهلة بين جوجل وكتابة الباسورد
@@ -376,7 +376,7 @@ async function handle(req, url, env, did) {
     if (!(await env.ROOM_PASSWORDS.get(env.ROOM_PASSWORDS.idFromName('global')).isActive(roomKey))) return new Response('Gone', { status: 410 });
     // بنبعت للغرفة هوية الجلسة عشان تقدر تقفل الاتصال فوراً لما الحساب يتاخد من جهاز تاني (وبنمسح أي هيدرز جاية من العميل)
     const h = new Headers(req.headers);
-    h.set('X-Acc-Sub', s.sub); h.set('X-Acc-V', s.v); h.set('X-Acc-Did', did);
+    h.set('X-Room-Id', r); h.set('X-Acc-Sub', s.sub); h.set('X-Acc-V', s.v); h.set('X-Acc-Did', did);
     return env.ROOM.get(env.ROOM.idFromName(r)).fetch(new Request(req, { headers: h })); // كل غرفة = Durable Object لوحدها
   }
 
@@ -703,11 +703,11 @@ export class Account extends DurableObject {
     return true;
   }
   async removeFcm(did) { await this.ctx.storage.delete('fcm:' + did); return true; }
-  async queueNotice(did, language, id, at) {
+  async queueNotice(did, language, id, at, rid) {
     await this.ctx.blockConcurrencyWhile(async () => {
       const now = Date.now(), notices = (await this.ctx.storage.get('notices') || []).filter((x) => x.created > now - 604800000);
       const cur = await this.ctx.storage.get('cur'), targetDid = cur && cur.d || did, ar = /^ar/i.test(language || '');
-      notices.push({id:id||rand(10),did:targetDid,created:at||now,at:at||now,title:ar?'غرفة مقفولة':'Locked Room',body:ar?'هناك من يطرق الباب':'Someone is knocking at the door'});
+      notices.push({id:id||rand(10),did:targetDid,created:at||now,at:at||now,rid:typeof rid==='string'&&/^[0-9a-f]{64}$/.test(rid)?rid:'',title:ar?'غرفة مقفولة':'Locked Room',body:ar?'هناك من يطرق الباب':'Someone is knocking at the door'});
       await this.ctx.storage.put('notices',notices.slice(-100));
     });
     return true;
@@ -751,7 +751,7 @@ export class Account extends DurableObject {
     });
     return true;
   }
-  async pushKnock(did, language, at) { return (await this.sendPushAll((ar) => knockPayload(ar, at), language)) === 'ok'; }
+  async pushKnock(did, language, at, rid) { return (await this.sendPushAll((ar) => knockPayload(ar, at, rid), language)) === 'ok'; }
   async pushUpdate(ver) { return this.sendPushAll((ar) => updatePayload(ar, ver)); }
 
   async takeNotices(did) {
@@ -1002,7 +1002,7 @@ export class Room extends DurableObject {
     }
     this.ctx.acceptWebSocket(server);
     const language = req.headers.get('Accept-Language') || 'en';
-    server.serializeAttachment({ c: 0, reset: Date.now() + 10000, sub, v, d, language, ok: true, until: Date.now() + 3000 });
+    server.serializeAttachment({ c: 0, reset: Date.now() + 10000, sub, v, d, language, rid: req.headers.get('X-Room-Id') || '', ok: true, until: Date.now() + 3000 });
     const members = await this.ctx.storage.get('members') || {};
     members[d] = { sub, d, language, t: Date.now() };
     await this.ctx.storage.put('members', members);
@@ -1131,7 +1131,7 @@ export class Room extends DurableObject {
       }
       const recipient = peerOf(members, a);
       if (recipient) {
-        try { const acc=this.env.ACCOUNT.get(this.env.ACCOUNT.idFromName(recipient.sub)); const pushed=await acc.pushKnock(recipient.d,recipient.language,now); if(!pushed)await acc.queueNotice(recipient.d,recipient.language,knockId,now); } catch {}
+        try { const acc=this.env.ACCOUNT.get(this.env.ACCOUNT.idFromName(recipient.sub)); const pushed=await acc.pushKnock(recipient.d,recipient.language,now,a.rid); if(!pushed)await acc.queueNotice(recipient.d,recipient.language,knockId,now,a.rid); } catch {}
       }
       return;
     }
