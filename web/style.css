@@ -380,6 +380,8 @@ body.shield #shield{display:grid}
 .callOrb i:nth-child(2){animation-delay:1.3s}.callOrb i:nth-child(3){animation-delay:2.6s}
 .callOrb #callAvatar{position:relative;z-index:1;width:66%;height:66%;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 35% 25%,#7fe6ff,#1b7fb0 52%,#0f4a63);background-size:cover;background-position:center;border:1px solid #ffffff55;box-shadow:0 0 70px #22d8ae44;font-size:clamp(2.7rem,8vw,5rem);color:#fff;animation:avatarFloat 4s ease-in-out infinite}
 #localVid{position:absolute;z-index:3;right:clamp(18px,4vw,48px);bottom:150px;top:auto;left:auto;width:clamp(96px,19vw,190px);aspect-ratio:3/4;object-fit:cover;border-radius:20px;border:1px solid #ffffff55;background:#10202f;box-shadow:0 15px 50px #0007;transform:scaleX(-1);transition:opacity .3s,transform .3s}
+#localVid{touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;-webkit-user-drag:none}
+#localVid.dragging{cursor:grabbing;transition:opacity .3s;box-shadow:0 20px 60px #000a}
 #call.audio #localVid{display:block;opacity:1}
 #call.camera-off #localVid{opacity:0;pointer-events:none}
 .callControls{position:absolute;z-index:4;inset:auto 0 max(26px,env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:center;gap:clamp(12px,4vw,34px);padding:0 16px}
