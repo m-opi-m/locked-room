@@ -38,14 +38,14 @@ async function accessToken(env, fetchFn, now) {
 // data-only عشان onMessageReceived في التطبيق يشتغل وهو في الخلفية. القيم لازم تبقى نصوص.
 export function fcmData(payload) {
   const d = {};
-  for (const k of ['title', 'body', 'kind', 'lang', 'url']) if (payload && payload[k] != null) d[k] = String(payload[k]);
+  for (const k of ['title', 'body', 'kind', 'lang', 'url', 'at']) if (payload && payload[k] != null) d[k] = String(payload[k]);
   return d;
 }
 
 // بيرجّع { ok, status, gone } — gone=true يعني التوكن مات والمفروض يتمسح.
 export async function sendFcm(env, token, payload, fetchFn = fetch, now = Date.now()) {
   const sa = account(env);
-  const body = JSON.stringify({ message: { token, data: fcmData(payload), android: { priority: 'HIGH', ttl: '86400s' } } });
+  const body = JSON.stringify({ message: { token, data: fcmData(payload), android: { priority: 'HIGH', ttl: payload && payload.kind === 'update' ? '86400s' : '604800s' } } });
   for (let attempt = 0; attempt < 2; attempt++) {
     const at = await accessToken(env, fetchFn, now);
     const r = await fetchFn('https://fcm.googleapis.com/v1/projects/' + encodeURIComponent(sa.project_id) + '/messages:send', { method: 'POST', headers: { Authorization: 'Bearer ' + at, 'Content-Type': 'application/json' }, body });

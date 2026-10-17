@@ -6,7 +6,7 @@ import { peerOf, semverGt, updatePayload } from './push-util.js';
 import { fcmConfigured, validFcmToken, sendFcm } from './fcm.js';
 
 const PAGES = new Set(['/', '/app.js', '/style.css', '/logo.png', '/app-icon.png', '/apple-touch-icon.png', '/icon-192.png', '/badge-96.png', '/sw.js', '/gallery-editor.js']);
-const knockPayload = (ar) => ({ title: ar ? 'غرفة مقفولة' : 'Locked Room', body: ar ? 'هناك من يطرق الباب' : 'Someone is knocking at the door', lang: ar ? 'ar' : 'en', dir: ar ? 'rtl' : 'ltr', icon: '/icon-192.png', badge: '/badge-96.png', tag: 'locked-room-knock-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url: '/' });
+const knockPayload = (ar, at) => ({ at: at || Date.now(), title: ar ? 'غرفة مقفولة' : 'Locked Room', body: ar ? 'هناك من يطرق الباب' : 'Someone is knocking at the door', lang: ar ? 'ar' : 'en', dir: ar ? 'rtl' : 'ltr', icon: '/icon-192.png', badge: '/badge-96.png', tag: 'locked-room-knock-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url: '/' });
 const MAX_MSG = 6 * 1024 * 1024;
 const SESSION_DAYS = 7;          // مدة بقاء المستخدم داخل بعد ما يكتب الباسورد
 const PENDING_MIN = 15;          // المهلة بين جوجل وكتابة الباسورد
@@ -56,7 +56,7 @@ async function webPushPayload(env, subscription, payload) {
   const vapidKey=await crypto.subtle.importKey('jwk',jwk,{name:'ECDSA',namedCurve:'P-256'},false,['sign']);
   const encPart=value=>b64u(enc.encode(JSON.stringify(value))), header=encPart({typ:'JWT',alg:'ES256'}), claims=encPart({aud:endpoint.origin,exp:Math.floor(Date.now()/1000)+12*60*60,sub:env.VAPID_SUBJECT||subscription.origin||endpoint.origin}), unsigned=header+'.'+claims;
   const signature=new Uint8Array(await crypto.subtle.sign({name:'ECDSA',hash:'SHA-256'},vapidKey,enc.encode(unsigned))), jwt=unsigned+'.'+b64u(signature);
-  return {body,headers:{Authorization:'vapid t='+jwt+', k='+env.VAPID_PUBLIC_KEY,'Content-Encoding':'aes128gcm','Content-Type':'application/octet-stream',TTL:'86400',Urgency:'high'}};
+  return {body,headers:{Authorization:'vapid t='+jwt+', k='+env.VAPID_PUBLIC_KEY,'Content-Encoding':'aes128gcm','Content-Type':'application/octet-stream',TTL:payload&&payload.kind==='update'?'86400':'604800',Urgency:'high'}};
 }
 async function sendWebPush(env, subscription, payload) { const encrypted=await webPushPayload(env,subscription,payload);return fetch(subscription.endpoint,{method:'POST',headers:encrypted.headers,body:encrypted.body}); }
 
@@ -703,11 +703,11 @@ export class Account extends DurableObject {
     return true;
   }
   async removeFcm(did) { await this.ctx.storage.delete('fcm:' + did); return true; }
-  async queueNotice(did, language) {
+  async queueNotice(did, language, id, at) {
     await this.ctx.blockConcurrencyWhile(async () => {
-      const now = Date.now(), notices = (await this.ctx.storage.get('notices') || []).filter((x) => x.created > now - 86400000);
+      const now = Date.now(), notices = (await this.ctx.storage.get('notices') || []).filter((x) => x.created > now - 604800000);
       const cur = await this.ctx.storage.get('cur'), targetDid = cur && cur.d || did, ar = /^ar/i.test(language || '');
-      notices.push({id:rand(10),did:targetDid,created:now,title:ar?'غرفة مقفولة':'Locked Room',body:ar?'هناك من يطرق الباب':'Someone is knocking at the door'});
+      notices.push({id:id||rand(10),did:targetDid,created:at||now,at:at||now,title:ar?'غرفة مقفولة':'Locked Room',body:ar?'هناك من يطرق الباب':'Someone is knocking at the door'});
       await this.ctx.storage.put('notices',notices.slice(-100));
     });
     return true;
@@ -743,13 +743,21 @@ export class Account extends DurableObject {
     return ok ? 'ok' : 'fail';
   }
 
-  async pushKnock(did, language) { return (await this.sendPushAll(knockPayload, language)) === 'ok'; }
+  async dropNotice(id) {
+    if (typeof id !== 'string' || id.length > 40) return false;
+    await this.ctx.blockConcurrencyWhile(async () => {
+      const notices = await this.ctx.storage.get('notices') || [], left = notices.filter((x) => x.id !== id);
+      if (left.length !== notices.length) await this.ctx.storage.put('notices', left);
+    });
+    return true;
+  }
+  async pushKnock(did, language, at) { return (await this.sendPushAll((ar) => knockPayload(ar, at), language)) === 'ok'; }
   async pushUpdate(ver) { return this.sendPushAll((ar) => updatePayload(ar, ver)); }
 
   async takeNotices(did) {
     const now = Date.now();
     return this.ctx.blockConcurrencyWhile(async () => {
-      const notices = (await this.ctx.storage.get('notices') || []).filter((x) => x.created > now - 86400000);
+      const notices = (await this.ctx.storage.get('notices') || []).filter((x) => x.created > now - 604800000);
       const ready = notices.filter((x) => x.did === did);
       const remaining = notices.filter((x) => x.did !== did);
       if (remaining.length !== notices.length) await this.ctx.storage.put('notices', remaining);
@@ -1076,21 +1084,27 @@ export class Room extends DurableObject {
       }
       return;
     }
+    if (m.t === 'knockAck') {
+      // الطرف التاني استلم الطرق لايف، فمنحتاجش نحتفظ بالإشعار المحفوظ ليه
+      if (typeof m.id === 'string' && a.sub) { try { await this.env.ACCOUNT.get(this.env.ACCOUNT.idFromName(a.sub)).dropNotice(m.id); } catch {} }
+      return;
+    }
     if (m.t === 'knock') {
       if (now - (a.lastKnock || 0) < 350) return;
       a.lastKnock = now; ws.serializeAttachment(a);
       const members = await this.ctx.storage.get('members') || {};
       let delivered = false;
+      const knockId = rand(10); // نفس الرقم للـ websocket وللإشعار المحفوظ، عشان الإيصال يمسح المحفوظ
       for (const peer of this.ctx.getWebSockets()) {
         if (peer === ws) continue;
         const pa = peer.deserializeAttachment();
         if (!pa || pa.d === a.d || (pa.sub && pa.sub === a.sub)) continue;
         if (pa.sub && !(await this.alive(peer, pa))) continue;
-        try { peer.send(JSON.stringify({ t: 'knock', id: rand(10) })); delivered = true; } catch {}
+        try { peer.send(JSON.stringify({ t: 'knock', id: knockId, at: now })); delivered = true; } catch {}
       }
       const recipient = peerOf(members, a);
       if (recipient) {
-        try { const acc=this.env.ACCOUNT.get(this.env.ACCOUNT.idFromName(recipient.sub)); const pushed=await acc.pushKnock(recipient.d,recipient.language); if(!pushed&&!delivered)await acc.queueNotice(recipient.d,recipient.language); } catch {}
+        try { const acc=this.env.ACCOUNT.get(this.env.ACCOUNT.idFromName(recipient.sub)); const pushed=await acc.pushKnock(recipient.d,recipient.language,now); if(!pushed)await acc.queueNotice(recipient.d,recipient.language,knockId,now); } catch {}
       }
       return;
     }
