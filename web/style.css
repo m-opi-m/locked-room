@@ -848,3 +848,23 @@ html[dir=ltr] .vbSendBtn{transform:none}
 .lrMenu button{white-space:nowrap;text-align:start;border:0;background:transparent;color:#fff;font-size:.9rem;padding:10px 12px;border-radius:10px}
 .lrMenu button:hover,.lrMenu button:active{background:#ffffff18}
 #call .callControls{direction:ltr}
+
+/* ---------- 1.18: عرض وإرسال أي ملف ---------- */
+.lrfHost{max-width:min(78vw,360px)}
+.lrfView{display:grid;gap:4px}
+.lrfImg{display:block;max-width:100%;max-height:420px;border-radius:12px}
+.lrfVid{display:block;width:min(72vw,360px);max-height:420px;border-radius:12px;background:#050b14}
+.lrfAud{display:block;width:min(72vw,300px);height:40px}
+.lrfCap{display:block;opacity:.75;font-size:.72rem;margin:2px 2px 0;overflow-wrap:anywhere}
+.lrfCard{display:flex;align-items:center;gap:10px;min-width:min(64vw,240px);padding:4px 2px}
+.lrfIc{position:relative;flex:none;width:42px;height:50px;display:grid;place-items:center;border-radius:10px;background:rgba(255,255,255,.14)}
+.lrfIc .uiIcon{width:24px;height:24px;margin-top:-8px}
+.lrfIc b{position:absolute;bottom:3px;left:0;right:0;text-align:center;font-size:.5rem;letter-spacing:.3px}
+.lrfTx{min-width:0;flex:1;display:grid;gap:3px}
+.lrfTx strong{font-size:.86rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lrfTx small{font-size:.72rem;opacity:.75}
+.lrfAct{display:grid;gap:5px;flex:none}
+.lrfAct a{display:block;text-align:center;padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.16);color:inherit;font-size:.78rem;text-decoration:none}
+.lrfBar{height:4px;border-radius:3px;background:rgba(255,255,255,.2);overflow:hidden}
+.lrfBar i{display:block;height:100%;background:#2fd6a3;transition:width .25s}
+.lrfFail button{flex:none;border:0;border-radius:999px;padding:6px 12px;background:#ff6b6b;color:#fff;font:inherit;font-size:.78rem}

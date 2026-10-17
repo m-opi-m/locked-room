@@ -5,7 +5,7 @@ import { APP_VERSION } from './version.js';
 import { peerOf, semverGt, updatePayload } from './push-util.js';
 import { fcmConfigured, validFcmToken, sendFcm } from './fcm.js';
 
-const PAGES = new Set(['/', '/app.js', '/style.css', '/logo.png', '/app-icon.png', '/apple-touch-icon.png', '/icon-192.png', '/badge-96.png', '/sw.js', '/gallery-editor.js']);
+const PAGES = new Set(['/', '/app.js', '/style.css', '/logo.png', '/app-icon.png', '/apple-touch-icon.png', '/icon-192.png', '/badge-96.png', '/sw.js', '/gallery-editor.js', '/heic.js']);
 const knockPayload = (ar, at, rid) => ({ at: at || Date.now(), rid: typeof rid === 'string' && /^[0-9a-f]{64}$/.test(rid) ? rid : '', title: ar ? 'غرفة مقفولة' : 'Locked Room', body: ar ? 'هناك من يطرق الباب' : 'Someone is knocking at the door', lang: ar ? 'ar' : 'en', dir: ar ? 'rtl' : 'ltr', icon: '/icon-192.png', badge: '/badge-96.png', tag: 'locked-room-knock-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url: '/' });
 const MAX_MSG = 6 * 1024 * 1024;
 const SESSION_DAYS = 7;          // مدة بقاء المستخدم داخل بعد ما يكتب الباسورد
@@ -22,7 +22,7 @@ function secHeaders(url, type) {
   const conn = `'self' wss://${url.host}` + (isLocal(url) ? ` ws://${url.host}` : '');
   return {
     'Content-Type': type,
-    'Content-Security-Policy': `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src ${conn}; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
+    'Content-Security-Policy': `default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src ${conn}; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
     'Strict-Transport-Security': 'max-age=63072000; includeSubDomains',
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
@@ -171,9 +171,9 @@ function redirect(url, to, cookies = []) {
   for (const c of cookies) h.append('Set-Cookie', c);
   return new Response(null, { status: 302, headers: h });
 }
-async function readBody(req) {
+async function readBody(req, max = 8192) {
   const t = await req.text();
-  if (t.length > 8192) return null;
+  if (t.length > max) return null;
   try { return JSON.parse(t); } catch { return null; }
 }
 const account = (env, sub) => env.ACCOUNT.get(env.ACCOUNT.idFromName(sub));
@@ -444,7 +444,7 @@ async function handle(req, url, env, did) {
     return json(url, { sessions: await account(env, s.sub).sessionLog() });
   }
 
-  const POSTS = ['/api/setup', '/api/recover/send', '/api/recover/verify', '/api/recover/wipe', '/api/login', '/api/reset', '/api/ack', '/api/notme', '/api/login-request/respond', '/api/change-password', '/api/room-password/check', '/api/room/status', '/api/room/delete', '/api/turn', '/api/push/subscribe', '/api/push/unsubscribe', '/api/fcm/register', '/api/fcm/unregister', '/auth/logout'];
+  const POSTS = ['/api/setup', '/api/recover/send', '/api/recover/verify', '/api/recover/wipe', '/api/login', '/api/reset', '/api/ack', '/api/notme', '/api/login-request/respond', '/api/change-password', '/api/room-password/check', '/api/room/status', '/api/room/delete', '/api/turn', '/api/vault', '/api/push/subscribe', '/api/push/unsubscribe', '/api/fcm/register', '/api/fcm/unregister', '/auth/logout'];
   if (req.method === 'POST' && POSTS.includes(path)) {
     if (req.headers.get('Origin') !== url.origin) return json(url, { e: 'forbidden' }, 403);
     if (path === '/auth/logout') {
@@ -496,6 +496,16 @@ async function handle(req, url, env, did) {
       if (!env.TURN_KEY_ID || !env.TURN_API_TOKEN) return json(url, { e: 'turn_not_configured' }, 503);
       const ice = await turnCredentials(env);
       return ice ? json(url, { iceServers: ice }) : json(url, { e: 'turn_failed' }, 502);
+    }
+    if (path === '/api/vault') {
+      // نسخة احتياطية مشفّرة (من المتصفح بباسورد الحساب) لقايمة المحادثات، عشان أي جهاز جديد يلاقيها. السيرفر مبيعرفش يقرأها.
+      if (!mine || !st.ok) return json(url, { e: 'session' }, 401);
+      const body = await readBody(req, 100000);
+      const b64 = (x, max) => typeof x === 'string' && x.length > 0 && x.length <= max && /^[A-Za-z0-9+/=_-]+$/.test(x);
+      if (body && body.op === 'get') return json(url, { vault: await acc.vaultGet() });
+      if (body && body.op === 'check') return json(url, { ok: typeof body.pw === 'string' && await acc.matchesPassword(s.v, did, body.pw) });
+      if (body && body.op === 'put' && b64(body.salt, 64) && b64(body.iv, 64) && b64(body.ct, 90000)) { await acc.vaultPut({ salt: body.salt, iv: body.iv, ct: body.ct, t: Date.now() }); return json(url, { ok: true }); }
+      return json(url, { e: 'invalid' }, 400);
     }
     if (path === '/api/push/subscribe' || path === '/api/push/unsubscribe') {
       if (!mine || !st.ok) return json(url,{e:'session'},401);
@@ -692,6 +702,8 @@ export class Account extends DurableObject {
     }));
   }
 
+  async vaultGet() { return (await this.ctx.storage.get('vault')) || null; }
+  async vaultPut(v) { await this.ctx.storage.put('vault', v); return true; }
   async savePush(did, subscription) { await this.ctx.storage.put('push:' + did, subscription); return true; }
   async removePush(did) { await this.ctx.storage.delete('push:' + did); return true; }
   // توكن FCM لتطبيق Android. توكن واحد لكل جهاز، ولو نفس التوكن اتسجل لجهاز تاني بيتشال من القديم.

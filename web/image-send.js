@@ -25,7 +25,7 @@
   // ---------- input جديد مخصوص للصور (مش #file القديم) ----------
   // مش display:none: بعض الـ WebViews بتتجاهل click() على العناصر المخفية بالكامل.
   const input = document.createElement('input');
-  input.type = 'file'; input.accept = 'image/*'; input.id = 'imgPick';
+  input.type = 'file'; input.accept = 'image/*,video/*,audio/*,.heic,.heif,.avif'; input.id = 'imgPick';
   input.setAttribute('aria-hidden', 'true'); input.tabIndex = -1;
   input.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none';
   document.body.append(input);
@@ -47,7 +47,8 @@
     if (u[0] === 0x47 && u[1] === 0x49) return 'image/gif';
     if (u[0] === 0x52 && u[1] === 0x49 && u[8] === 0x57) return 'image/webp';
     const tag = String.fromCharCode(...u.slice(4, 12));
-    if (/ftyp(heic|heix|mif1|hevc)/.test(tag)) return 'image/heic';
+    if (/ftyp(heic|heix|hevc|hevx|heim|heis|mif1|msf1)/.test(tag)) return 'image/heic';
+    if (/ftypavi[fs]/.test(tag)) return 'image/avif';
     return '';
   }
   async function decode(blob) {
@@ -59,8 +60,17 @@
     } finally { setTimeout(() => URL.revokeObjectURL(url), 5000); }
   }
   const MAX_WORK = 2400;
-  async function toCanvas(blob) { // بنفك الصورة لـ canvas شغّال (أقصى ضلع 2400)
-    const d = await decode(blob);
+  async function decodeHeic(blob) { // HEIC/HEIF: المتصفح مبيفكهاش، فبنحمّل فاك wasm (مرة واحدة) ونرسمها على canvas
+    say('⏳ جاري تحويل صورة HEIC…', 0);
+    const id = await (await window.lrfHeicLoad())(await blob.arrayBuffer());
+    const c = document.createElement('canvas'); c.width = id.width; c.height = id.height; c.getContext('2d').putImageData(id, 0, 0);
+    return { src: c, w: c.width, h: c.height };
+  }
+  async function toCanvas(blob, name) { // بنفك الصورة لـ canvas شغّال (أقصى ضلع 2400)
+    let d;
+    try { d = await decode(blob); } catch (e) {
+      if (window.lrfIsHeic?.(blob.type, name)) d = await decodeHeic(blob); else throw e;
+    }
     if (!d.w || !d.h) throw Error('الصورة فاضية');
     const s = Math.min(1, MAX_WORK / Math.max(d.w, d.h)), c = document.createElement('canvas');
     c.width = Math.max(1, Math.round(d.w * s)); c.height = Math.max(1, Math.round(d.h * s));
@@ -135,6 +145,14 @@
     step('picked', f ? `${f.name}|${f.type}|${f.size}` : 'none');
     if (!f || seen.has(f)) return;
     seen.add(f);
+    // أي حاجة غير الصور (فيديو/صوت/ملفات) أو GIF/SVG (عشان الحركة متضيعش): بتتبعت زي ما هي وبتتعرض في الشات
+    const ft = window.lrfType ? window.lrfType(f.name, f.type) : f.type;
+    if (!ft.startsWith('image/') || /^image\/(gif|svg\+xml)$/.test(ft)) {
+      if (!chatOpen()) { say('🔒 الشات اتقفل. ادخل الباسورد وارجع ابعت الملف تاني.', 7000); return; }
+      say('', 1); banner?.classList.remove('show');
+      window.lrSendAny(f);
+      return;
+    }
     say('⏳ جاري تجهيز الصورة…', 0);
     let work;
     try {
@@ -142,14 +160,16 @@
       const buf = await f.arrayBuffer();
       step('read', buf.byteLength);
       if (!buf.byteLength) throw Error('الصورة فاضية أو مش مسموح بقراءتها');
-      const type = f.type && f.type.startsWith('image/') ? f.type : sniffType(buf);
+      const type = f.type && f.type.startsWith('image/') ? f.type : (sniffType(buf) || (window.lrfIsHeic?.('', f.name) ? 'image/heic' : ''));
       if (!type) throw Error('الملف ده مش صورة');
-      work = await toCanvas(new Blob([buf], { type }));
+      work = await toCanvas(new Blob([buf], { type: window.lrfIsHeic?.(type, f.name) ? 'image/heic' : type }), f.name);
       step('canvas', work.width + 'x' + work.height);
     } catch (e) {
       step('prep-fail', e?.message);
-      say('❌ ' + (e?.message || 'معرفتش أقرأ الصورة') + (/heic|heif/i.test(f.type) ? ' (HEIC مش مدعوم هنا)' : ''), 6000);
       try { input.value = ''; } catch {}
+      // مش قادرين نفك الصورة؟ منفشلش: نبعتها كملف زي ما هي
+      if (chatOpen()) { say('⚠️ مش قادر أعرض الصورة دي هنا، هتتبعت كملف.', 4500); window.lrSendAny(f); }
+      else say('❌ ' + (e?.message || 'معرفتش أقرأ الصورة'), 6000);
       return;
     }
     try { input.value = ''; } catch {}

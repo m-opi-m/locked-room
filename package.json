@@ -1,6 +1,6 @@
 {
   "name": "locked-room",
-  "version": "1.17.0",
+  "version": "1.18.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,6 +13,7 @@
   },
   "devDependencies": {
     "esbuild": "^0.25.12",
+    "libheif-js": "^1.23.5",
     "wrangler": "^4.0.0"
   }
 }
