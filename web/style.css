@@ -907,3 +907,6 @@ html[dir=ltr] .vbSendBtn{transform:none}
 .daySep{align-self:stretch;display:flex;align-items:center;gap:.7rem;margin:.9rem .3rem .45rem;color:#ffffff99;font-size:.74rem;font-weight:600;pointer-events:none;flex:none;background:none;border:0;padding:0}
 .daySep::before,.daySep::after{content:"";flex:1;height:1px;background:linear-gradient(to var(--ds,right),transparent,#ffffff26)}
 .daySep::after{--ds:left}
+.dayFloat{position:absolute;left:50%;transform:translateX(-50%);z-index:40;padding:.3rem .95rem;border-radius:99px;background:#0b1c34f2;border:1px solid var(--line2);color:#ffffffe6;font-size:.76rem;font-weight:700;box-shadow:0 4px 16px #0006;backdrop-filter:blur(6px);pointer-events:none;opacity:0;transition:opacity .25s;white-space:nowrap}
+.dayFloat.show{opacity:1}
+#chat{position:relative}

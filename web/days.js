@@ -1,5 +1,6 @@
 /* ---------- 1.22: فواصل التواريخ في الشات (اليوم / امبارح / اسم اليوم / التاريخ) — ملف لوحده بيتضم لآخر app.js وقت الـ build ----------
    بيراقب #log وبيحط .daySep قبل أول رسالة في كل يوم (حسب data-at بتاع .m). الفاصل جزء عادي من الشات (بيسكرول معاه، مش عايم).
+   كمان فيه شريطة عايمة (.dayFloat) بتظهر وقت السكرول في الأيام القديمة بس (مش النهارده).
    بيشتغل مع الرسايل الجديدة والسجل القديم (اللي بيتحمّل لفوق) من غير ما الشات يقفز. */
 (() => {
   const log = document.getElementById("log");
@@ -40,6 +41,21 @@
   }
   const sched = () => { if (!queued) { queued = true; requestAnimationFrame(run); } };
   new MutationObserver(() => { if (!busy) sched(); }).observe(log, { childList: true });
+  // الشريطة العايمة: وانت بتسكرول في أي يوم قديم (غير النهارده) بتظهر فوق بتاريخ اليوم اللي إنت فيه، وتختفي بعد ما توقف سكرول
+  const chat = log.parentElement, fl = document.createElement("div");
+  fl.className = "dayFloat"; fl.setAttribute("aria-hidden", "true"); chat.appendChild(fl);
+  let ft = 0, raf = 0;
+  function float() {
+    raf = 0;
+    const lr = log.getBoundingClientRect(), cr = chat.getBoundingClientRect();
+    let top = null;
+    for (const m of log.querySelectorAll(".m[data-at]")) { if (m.getBoundingClientRect().bottom > lr.top + 12) { top = m; break; } }
+    const at = top && Number(top.dataset.at);
+    if (!at || key(new Date(at)) === key(new Date())) { fl.classList.remove("show"); return; }
+    fl.textContent = label(at); fl.style.top = (lr.top - cr.top + 8) + "px"; fl.classList.add("show");
+    clearTimeout(ft); ft = setTimeout(() => fl.classList.remove("show"), 1400);
+  }
+  log.addEventListener("scroll", () => { if (!raf) raf = requestAnimationFrame(float); }, { passive: true });
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") sched(); });
   setInterval(sched, 60000); // بعد نص الليل "اليوم" يبقى "امبارح"
   sched();

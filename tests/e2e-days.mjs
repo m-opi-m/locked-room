@@ -25,5 +25,15 @@ ok('رسالة قديمة بنفس يوم أقدم فاصل ما بتكرّرش 
 await add(now - 40 * D, 'start'); await p.waitForTimeout(300);
 ok('رسالة أقدم (سجل) بتضيف فاصل جديد فوق', (await seps()).length === 5);
 ok('الفاصل جوه الشات (مش عايم/sticky)', await p.evaluate(() => getComputedStyle(document.querySelector('.daySep')).position === 'static'));
+await p.evaluate(() => { const c = document.getElementById('chat'); c.classList.remove('hidden'); const l = document.getElementById('log'); l.style.height = '300px'; l.style.overflowY = 'auto'; for (const m of l.querySelectorAll('.m')) m.style.minHeight = '120px'; });
+await p.waitForTimeout(300);
+const fl = () => p.evaluate(() => { const f = document.querySelector('.dayFloat'); return f && f.classList.contains('show') ? f.textContent : ''; });
+for (let i = 0; i < 4; i++) await add(now);
+await p.evaluate(() => { const l = document.getElementById('log'); for (const m of l.querySelectorAll('.m')) m.style.minHeight = '120px'; l.scrollTop = 200; }); await p.waitForTimeout(300);
+ok('فوق (يوم قديم) الشريطة العايمة بتظهر', (await fl()) !== '');
+await p.evaluate(() => { const l = document.getElementById('log'); l.scrollTop = l.scrollHeight; }); await p.waitForTimeout(300);
+ok('عند اليوم الحالي مفيش شريطة عايمة', (await fl()) === '');
+await p.evaluate(() => { document.getElementById('log').scrollTop = 0; }); await p.waitForTimeout(2000);
+ok('بتختفي بعد وقف السكرول', (await fl()) === '');
 ok('مفيش أخطاء JS', errs.length === 0);
 await browser.close(); srv.close(); console.log(fails ? fails + ' FAILED' : 'ALL PASS'); process.exit(fails ? 1 : 0);
