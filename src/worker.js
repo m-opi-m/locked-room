@@ -1008,12 +1008,38 @@ export class Room extends DurableObject {
     await this.ctx.storage.put('members', members);
     const all = this.ctx.getWebSockets();
     server.send(JSON.stringify({ t: 'joined', n: all.length }));
+    // مزامنة تفاضلية (زي واتساب/تيليجرام): الجهاز بيبعت since (أول رقم تسلسل ناقصه) والسيرفر يبعت الجديد بس.
+    // اللي أقدم من since بيتبعت منه حالة صغيرة (mid + كود) عشان الجهاز يعرف اللي اتمسح واللي اتغيّرت حالته.
+    let since = parseInt(new URL(req.url).searchParams.get('since') || '0', 10);
+    if (!Number.isInteger(since) || since < 0) since = 0;
     const count = await this.ctx.storage.get('historyCount') || 0;
+    if (since > count) { since = 0; server.send(JSON.stringify({ t: 'hreset' })); } // الجهاز عنده أكتر من السيرفر: نسخته قديمة، يبدأ من الأول
+    const metas = new Map();
+    for (let from = 0; from < count; from += 128) {
+      const keys = [];
+      for (let i = from; i < Math.min(count, from + 128); i++) keys.push('history:' + i);
+      const got = await this.ctx.storage.get(keys); // قراءة دفعة واحدة بدل رسالة رسالة
+      for (const [k, v] of got) metas.set(Number(k.slice(8)), v);
+    }
+    const sendFull = [], stateItems = [];
     for (let i = 0; i < count; i++) {
-      const item = await this.ctx.storage.get('history:' + i);
+      const item = metas.get(i);
       if (!item) continue;
+      const mine = item.fromDid === d;
+      const needFull = i >= since || (item.once === true && item.opened !== true && !mine); // وسائط "مرة واحدة" لسه متفتحتش لازم تتبعت تاني
+      if (needFull) { sendFull.push(i); continue; }
+      if (!item.mid) continue;
+      if (!mine && !item.delivered) {
+        const updated = await this.setReceipt(item.mid, 'delivered');
+        if (updated) this.notifyReceipt(updated, item.mid, 'delivered');
+      }
+      stateItems.push([item.mid, item.opened === true ? 'o' : mine ? (item.read ? 'r' : item.delivered ? 'd' : 's') : (item.read ? 'r' : 'u')]);
+    }
+    server.send(JSON.stringify({ t: 'hbegin', since, n: sendFull.length }));
+    for (const i of sendFull) {
+      const item = metas.get(i);
       if (item.opened === true) {
-        server.send(JSON.stringify({ t: 'msg', iv: '', ct: '', sentAt: item.sentAt, history: true, once: true, opened: true, mid: item.mid || '', fromSelf: item.fromDid === d, receipt: 'read' }));
+        server.send(JSON.stringify({ t: 'msg', iv: '', ct: '', sentAt: item.sentAt, history: true, once: true, opened: true, mid: item.mid || '', fromSelf: item.fromDid === d, receipt: 'read', seq: i }));
         continue;
       }
       let ct = item.ct || '';
@@ -1022,12 +1048,13 @@ export class Room extends DurableObject {
         for (let part = 0; part < item.parts; part++) ct += await this.ctx.storage.get('history:' + i + ':' + part) || '';
       }
       const state = item.read ? 'read' : item.delivered ? 'delivered' : 'sent';
-      server.send(JSON.stringify({ t: 'msg', iv: item.iv, ct, sentAt: item.sentAt, history: true, once: !!item.once, mid: item.mid || '', fromSelf: item.fromDid === d, receipt: item.fromDid === d ? state : 'sent' }));
+      server.send(JSON.stringify({ t: 'msg', iv: item.iv, ct, sentAt: item.sentAt, history: true, once: !!item.once, mid: item.mid || '', fromSelf: item.fromDid === d, receipt: item.fromDid === d ? state : 'sent', seq: i }));
       if (item.mid && item.fromDid !== d && !item.delivered) {
         const updated = await this.setReceipt(item.mid, 'delivered');
         if (updated) this.notifyReceipt(updated, item.mid, 'delivered');
       }
     }
+    if (since > 0) server.send(JSON.stringify({ t: 'hstate', since, items: stateItems }));
     const profiles = await this.ctx.storage.get('profiles') || {};
     for (const [did, profile] of Object.entries(profiles)) if (did !== d && profile && profile.iv && profile.ct) server.send(JSON.stringify({ t: 'profile', iv: profile.iv, ct: profile.ct }));
     for (const peer of all) if (peer !== server) peer.send(JSON.stringify({ t: 'peer', n: all.length }));
@@ -1119,6 +1146,7 @@ export class Room extends DurableObject {
       try { ws.send(JSON.stringify({ t: 'deleted' })); ws.close(4002, 'deleted'); } catch {}
       return;
     }
+    let storedInfo = null;
     if (m.p === 1) {
       const stored = await this.ctx.blockConcurrencyWhile(async () => {
         if (await this.ctx.storage.get('deleted')) return false;
@@ -1128,13 +1156,15 @@ export class Room extends DurableObject {
         for (let part = 0; part < parts; part++) values['history:' + count + ':' + part] = m.ct.slice(part * 100000, (part + 1) * 100000);
         await this.ctx.storage.put(values);
         await this.ctx.storage.put('historyCount', count + 1);
-        return true;
+        return { seq: count, mid, sentAt: values['history:' + count].sentAt };
       });
       if (!stored) return;
+      storedInfo = stored;
+      try { ws.send(JSON.stringify({ t: 'stored', mid: stored.mid, seq: stored.seq, sentAt: stored.sentAt })); } catch {} // تأكيد للمرسل برقم التسلسل
     }
     if (await this.ctx.storage.get('deleted')) return;
     const mid = typeof m.mid === 'string' && /^[a-f0-9]{32}$/.test(m.mid) ? m.mid : '';
-    const out = JSON.stringify({ t: 'msg', iv: m.iv, ct: m.ct, sentAt: Date.now(), mid, fromSelf: false, once: m.p === 1 && m.once === true });
+    const out = JSON.stringify({ t: 'msg', iv: m.iv, ct: m.ct, sentAt: storedInfo ? storedInfo.sentAt : Date.now(), mid, fromSelf: false, once: m.p === 1 && m.once === true, ...(storedInfo ? { seq: storedInfo.seq } : {}) });
     let delivered = false;
     for (const peer of this.ctx.getWebSockets()) {
       if (peer === ws) continue;

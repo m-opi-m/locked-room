@@ -678,3 +678,6 @@ body.callBarOn #home{padding-top:1rem}
 .viewOnceMessage.opened{opacity:.72}
 .viewOnceMessage.opened .onceBadge{border-style:dashed}
 .onceCap{max-width:90vw;margin:0;color:#fff;text-align:center;font-size:1rem}
+
+/* شريط "غير متصل" */
+#lrOfflineBar{position:fixed;top:0;left:0;right:0;z-index:60;padding:calc(env(safe-area-inset-top,0px) + 6px) 12px 6px;text-align:center;font-size:12.5px;font-weight:600;color:#fff;background:rgba(160,90,10,.94);pointer-events:none}

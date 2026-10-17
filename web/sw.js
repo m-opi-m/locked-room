@@ -26,3 +26,28 @@ self.addEventListener('push',event=>{
   })());
 });
 self.addEventListener('notificationclick',event=>{event.notification.close();const target=new URL(event.notification.data?.url||'/',self.location.origin).href;event.waitUntil(self.clients.matchAll({type:'window',includeUncontrolled:true}).then(async clients=>{for(const client of clients){if(new URL(client.url).origin===self.location.origin){if('navigate'in client)await client.navigate(target);return client.focus();}}return self.clients.openWindow(target);}));});
+
+// ===== فتح التطبيق من غير إنترنت: نحفظ شكل التطبيق (الصفحة والـ js والـ css والأيقونات) ونرجعله لو مفيش نت =====
+const SHELL = 'lr-shell-v1';
+const SHELL_PATHS = new Set(['/', '/index.html', '/app.js', '/style.css', '/logo.png', '/icon-192.png', '/app-icon.png', '/apple-touch-icon.png', '/badge-96.png']);
+self.addEventListener('fetch', event => {
+  const req = event.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin || !SHELL_PATHS.has(url.pathname)) return; // /api و /ws و /auth دايماً من الشبكة
+  event.respondWith((async () => {
+    const cache = await caches.open(SHELL);
+    const key = new Request(url.pathname === '/index.html' ? '/' : url.pathname);
+    try {
+      // الشبكة الأول (عشان التحديثات توصل فوراً)، ولو بطيئة قوي نرجع للنسخة المحفوظة
+      const net = fetch(req, { cache: 'no-store' });
+      const res = await Promise.race([net, new Promise((_, rej) => setTimeout(() => rej(new Error('slow')), 6000))]);
+      if (res && res.ok) cache.put(key, res.clone()).catch(() => {});
+      return res;
+    } catch {
+      const hit = await cache.match(key, { ignoreSearch: true });
+      if (hit) return hit;
+      return fetch(req);
+    }
+  })());
+});
