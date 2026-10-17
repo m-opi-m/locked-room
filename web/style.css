@@ -1000,3 +1000,12 @@ html[dir=ltr] .vbSendBtn{transform:none}
 .lrvePlay{position:absolute;left:50%;top:50%;width:68px;height:68px;margin:-34px 0 0 -34px;border-radius:50%;background:#000a!important;display:grid;place-items:center;color:#fff}
 .lrvePlay.hidden{display:none}
 .lrveBottom{flex:0 0 auto;padding:8px 10px calc(env(safe-area-inset-bottom) + 10px)}
+
+/* 1.27.1: شاشة المشاركة (بديل لو المتصفح/التطبيق مفيهوش share الأصلي) */
+.lrShareSheet{z-index:80}
+.lrShareGrid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+.lrShareBtn{display:flex;align-items:center;justify-content:center;min-height:48px;padding:.7rem .8rem;border-radius:14px;border:1px solid var(--line2);background:var(--panel2);color:var(--text);font-weight:800;font-size:.95rem;text-decoration:none;cursor:pointer}
+.lrShareBtn.wa{background:#1fa855;border-color:transparent;color:#fff}
+.lrShareBtn.tg{background:#2a8fd6;border-color:transparent;color:#fff}
+.lrShareCopy{width:100%}
+.lrShareClose{background:transparent;border:0;color:var(--mute);padding:.5rem;font-weight:700}

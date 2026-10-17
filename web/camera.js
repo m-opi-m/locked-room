@@ -92,7 +92,7 @@
   cam.className = 'lrcam hidden'; cam.dir = 'rtl'; cam.setAttribute('role', 'dialog'); cam.setAttribute('aria-label', 'الكاميرا');
   cam.innerHTML =
     '<div class="lrcamStage"><video id="lrcamVid" autoplay muted playsinline></video>' +
-    '<div class="lrcamTop"><button type="button" class="lrcamBtn" id="lrcamClose" aria-label="إغلاق">' + I.x + '</button><span class="lrcamRec hidden" id="lrcamRec"><i></i><b id="lrcamRecT">٠:٠٠</b></span>' +
+    '<div class="lrcamTop"><button type="button" class="lrcamBtn" id="lrcamClose" aria-label="إغلاق">' + I.x + '</button><span class="lrcamRec hidden" id="lrcamRec"><i></i><b id="lrcamRecT">0:00</b></span>' +
     '<button type="button" class="lrcamBtn" id="lrcamFlash" aria-label="الفلاش">' + I.flashOff + '<em id="lrcamFlashA" class="hidden">A</em></button></div>' +
     '<div class="lrcamNote" id="lrcamNote"></div></div>' +
     '<div class="lrcamStrip" id="lrcamStrip"></div>' +

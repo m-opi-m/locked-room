@@ -57,10 +57,11 @@ ok('الزرار بيعرض اتنسخ', /اتنسخ/.test(await A.locator('.cod
 await A.evaluate(() => { window.__shared = null; navigator.share = async (d) => { window.__shared = d; }; });
 await A.locator('.codeCardActions button').nth(1).click(); await A.waitForTimeout(300);
 const sh = await A.evaluate(() => window.__shared);
-ok('المشاركة بتبعت الكود والرابط', sh && sh.text.includes(code1) && sh.url.endsWith('/#' + code1.replace(/-/g, '')));
-await A.evaluate(() => { navigator.share = undefined; });
+ok('المشاركة (1.27.1) بتبعت رابط بيفتح الغرفة', sh && (sh.text || '').includes('/#' + code1.replace(/-/g, '')));
+await A.evaluate(() => { Object.defineProperty(navigator, 'share', { value: undefined, configurable: true }); });
 await A.locator('.codeCardActions button').nth(1).click(); await A.waitForTimeout(300);
-ok('من غير navigator.share: بينسخ الرابط', /\/#/.test(await A.evaluate(() => navigator.clipboard.readText()).catch(() => '')));
+ok('من غير navigator.share: بتظهر شاشة مشاركة (واتساب...) بدل النسخ', (await A.locator('.lrShareSheet a[href^="https://wa.me/"]').count()) === 1);
+await A.evaluate(() => document.querySelector('.lrShareClose').click());
 
 await join(B, code1, pw1);
 ok('A و B دخلوا الغرفة 1', (await connected(A)) && (await connected(B)));
