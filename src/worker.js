@@ -135,6 +135,22 @@ async function readSession(req, url, env) {
   } catch { return null; }
 }
 // opt.full = جلسة كاملة (7 أيام) | opt.v = رقم الجلسة | opt.rs = مستني باسورد جديد
+async function turnCredentials(env) {
+  for (const ep of ['generate-ice-servers', 'generate']) {
+    try {
+      const r = await fetch(`https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(env.TURN_KEY_ID)}/credentials/${ep}`, {
+        method: 'POST', headers: { Authorization: `Bearer ${env.TURN_API_TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ ttl: 86400 }),
+      });
+      if (!r.ok) continue;
+      const d = await r.json();
+      let l = d && d.iceServers; if (l && !Array.isArray(l)) l = [l];
+      l = (l || []).filter((x) => x && (typeof x.urls === 'string' || Array.isArray(x.urls))).map((x) => ({ urls: x.urls, ...(x.username ? { username: x.username, credential: x.credential } : {}) }));
+      if (l.length) return l;
+    } catch {}
+  }
+  return null;
+}
+
 async function sessionCookie(url, env, s, opt = {}) {
   const ms = (opt.full ? SESSION_DAYS * 1440 : PENDING_MIN) * 60000;
   const tok = await signSession(env, {
@@ -428,7 +444,7 @@ async function handle(req, url, env, did) {
     return json(url, { sessions: await account(env, s.sub).sessionLog() });
   }
 
-  const POSTS = ['/api/setup', '/api/recover/send', '/api/recover/verify', '/api/recover/wipe', '/api/login', '/api/reset', '/api/ack', '/api/notme', '/api/login-request/respond', '/api/change-password', '/api/room-password/check', '/api/room/status', '/api/room/delete', '/api/push/subscribe', '/api/push/unsubscribe', '/api/fcm/register', '/api/fcm/unregister', '/auth/logout'];
+  const POSTS = ['/api/setup', '/api/recover/send', '/api/recover/verify', '/api/recover/wipe', '/api/login', '/api/reset', '/api/ack', '/api/notme', '/api/login-request/respond', '/api/change-password', '/api/room-password/check', '/api/room/status', '/api/room/delete', '/api/turn', '/api/push/subscribe', '/api/push/unsubscribe', '/api/fcm/register', '/api/fcm/unregister', '/auth/logout'];
   if (req.method === 'POST' && POSTS.includes(path)) {
     if (req.headers.get('Origin') !== url.origin) return json(url, { e: 'forbidden' }, 403);
     if (path === '/auth/logout') {
@@ -474,6 +490,13 @@ async function handle(req, url, env, did) {
       return json(url, { ok: true });
     }
 
+    if (path === '/api/turn') {
+      // خوادم TURN مؤقتة من Cloudflare عشان المكالمة تشتغل حتى لو الشبكة بتمنع الاتصال المباشر (CGNAT / شبكات الموبايل)
+      if (!mine || !st.ok) return json(url, { e: 'session' }, 401);
+      if (!env.TURN_KEY_ID || !env.TURN_API_TOKEN) return json(url, { e: 'turn_not_configured' }, 503);
+      const ice = await turnCredentials(env);
+      return ice ? json(url, { iceServers: ice }) : json(url, { e: 'turn_failed' }, 502);
+    }
     if (path === '/api/push/subscribe' || path === '/api/push/unsubscribe') {
       if (!mine || !st.ok) return json(url,{e:'session'},401);
       if (path === '/api/push/unsubscribe') { await acc.removePush(did); return json(url,{ok:true}); }
