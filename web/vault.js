@@ -86,3 +86,50 @@ function lrVaultForget() { clearTimeout(lrvPushT); return lrvRec(null); }
     } catch { st.textContent = "حصل خطأ، جرب تاني."; } finally { b.disabled = false; }
   });
 }
+
+/* ---------- 1.19: تنبيه للأجهزة اللي لسه ما فعّلتش حفظ المحادثات ----------
+   قبل كده الحفظ ما كانش بيشتغل غير بعد تسجيل دخول بالباسورد على الجهاز. فأي جهاز مفتوح من قبل 1.18 كان ما بيحفظش حاجة،
+   وأول ما تفتح الحساب من جهاز جديد (أو تسترجعه) بتلاقيه فاضي. التنبيه ده بيطلب الباسورد مرة واحدة ويفعّل الحفظ. */
+(function () {
+  let el = null, busy = false;
+  const en = () => document.documentElement.lang === "en";
+  const dismissed = () => { try { return Date.now() - Number(localStorage.getItem("lr.vnDismiss") || 0) < 6 * 3600e3; } catch { return false; } };
+  function close(later) { if (later) { try { localStorage.setItem("lr.vnDismiss", String(Date.now())); } catch {} } el && el.remove(); el = null; }
+  async function maybe() {
+    try {
+      if (el || busy || !he || dismissed() || document.visibilityState !== "visible") return;
+      if (t("home").classList.contains("hidden") || !ie().length || !window.indexedDB || !crypto?.subtle) return;
+      busy = true;
+      const rec = await lrvRec();
+      busy = false;
+      if (rec && rec.key) return;
+      el = document.createElement("div"); el.className = "vaultNudge"; el.setAttribute("role", "dialog");
+      const h = document.createElement("strong"); h.textContent = en() ? "Back up your chats to your account" : "احفظ محادثاتك على حسابك";
+      const p = document.createElement("p"); p.textContent = en()
+        ? "Type your account password once. If you open the account on another phone or recover it, your chats will be there."
+        : "اكتب باسورد الحساب مرة واحدة. لو فتحت الحساب من جهاز تاني أو استرجعته هتلاقي محادثاتك موجودة.";
+      const pw = document.createElement("input"); pw.type = "password"; pw.autocomplete = "current-password"; pw.placeholder = en() ? "Account password" : "باسورد الحساب";
+      const err = document.createElement("small");
+      const go = document.createElement("button"); go.type = "button"; go.textContent = en() ? "Save" : "احفظ";
+      const later = document.createElement("button"); later.type = "button"; later.className = "ghost"; later.textContent = en() ? "Later" : "بعدين";
+      const row = document.createElement("div"); row.className = "vnRow"; row.append(go, later);
+      el.append(h, p, pw, err, row); document.body.appendChild(el);
+      later.onclick = () => close(true);
+      go.onclick = async () => {
+        if (!pw.value) { err.textContent = en() ? "Type the password." : "اكتب الباسورد."; return; }
+        go.disabled = true; err.textContent = "";
+        try {
+          const { status, data } = await C("/api/vault", { op: "check", pw: pw.value });
+          if (status !== 200 || !data.ok) { err.textContent = en() ? "Wrong password." : "الباسورد غلط."; return; }
+          await lrVaultLogin(pw.value); pw.value = "";
+          const ok = await lrvRec();
+          if (ok && ok.key) { close(false); lrToast(en() ? "Chats are now backed up to your account." : "تم حفظ محادثاتك على حسابك."); }
+          else err.textContent = en() ? "Could not save. Try again." : "معرفتش أحفظ، جرب تاني.";
+        } catch { err.textContent = en() ? "Something went wrong." : "حصل خطأ، جرب تاني."; } finally { go.disabled = false; }
+      };
+      pw.addEventListener("keydown", (e) => { if (e.key === "Enter") go.click(); });
+    } catch { busy = false; }
+  }
+  setInterval(maybe, 5000);
+  setTimeout(maybe, 3000);
+})();

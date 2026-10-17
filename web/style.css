@@ -875,3 +875,12 @@ html[dir=ltr] .vbSendBtn{transform:none}
 .roomCard.hasUnread .roomInfo small{color:#e6fbff}
 /* زر مكبر الصوت: لما يكون شغّال يتعلّم بوضوح */
 #call #speakerBtn.isOn .controlIcon,#call.vmode #speakerBtn.isOn .controlIcon{background:#fff;color:#1c58c6}
+
+/* 1.19: تنبيه حفظ المحادثات على الحساب */
+.vaultNudge{position:fixed;z-index:60;inset:auto 12px max(14px,env(safe-area-inset-bottom)) 12px;max-width:440px;margin-inline:auto;display:grid;gap:.55rem;padding:1rem;border-radius:18px;background:linear-gradient(135deg,#102342f2,#0a1a33f2);border:1px solid var(--gline);box-shadow:0 18px 50px #000a;backdrop-filter:blur(14px)}
+.vaultNudge strong{font-size:1.02rem}
+.vaultNudge p{margin:0;color:var(--mute);font-size:.88rem;line-height:1.5}
+.vaultNudge input{width:100%;padding:.7rem .85rem;border-radius:12px;border:1px solid var(--line);background:#06122488;color:#fff;font:inherit}
+.vaultNudge small{color:#ff9aa8;min-height:1em}
+.vaultNudge .vnRow{display:flex;gap:.6rem}.vaultNudge .vnRow button{flex:1}
+.vaultNudge .ghost{background:transparent;border:1px solid var(--line);color:var(--mute)}

@@ -364,7 +364,7 @@ if(s===401&&d.e==="session")return S("الجلسة خلصت، سجل دخولك 
 if(s===403)return S();
 msg("الكود غلط أو انتهت صلاحيته"+(d.left?` (باقي ${d.left} محاولات).`:"."))}
 let armed=0,timer=0;
-async function doWipe(){if(!armed){armed=1,wipe.textContent="اضغط تاني للتأكيد: هيتمسح الحساب كله وكل الأجهزة التانية هتتحظر",clearTimeout(timer),timer=setTimeout(()=>{armed=0,wipe.textContent=wipeLabel},7e3);return}
+async function doWipe(){if(!armed){armed=1,wipe.textContent="اضغط تاني للتأكيد: هيتمسح الحساب وكل محادثاتك (عندك وعند الطرف التاني) وكل الأجهزة التانية هتتحظر",clearTimeout(timer),timer=setTimeout(()=>{armed=0,wipe.textContent=wipeLabel},7e3);return}
 armed=0,clearTimeout(timer),wipe.textContent=wipeLabel,wipe.disabled=!0,t("uErr").textContent="جاري المسح...";let{status:s}=await C("/api/recover/wipe",{});wipe.disabled=!1;
 if(s===200)return t("uErr").textContent="",S();
 if(s===401)return S("الجلسة خلصت، سجل دخولك تاني.");

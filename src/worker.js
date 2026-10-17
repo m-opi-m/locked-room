@@ -478,6 +478,12 @@ async function handle(req, url, env, did) {
         const r = await acc.wipeAccount(did);
         if (r.blocked) return json(url, { e: 'blocked' }, 403, [dead]);
         if (!r.ok) return json(url, { e: 'state' }, 409);
+        // كمان بنمسح كل محادثات الحساب من السيرفر (عند الطرف التاني كمان؛ هيلاقيها اتمسحت أول ما يفتحها)
+        const registry = env.ROOM_PASSWORDS.get(env.ROOM_PASSWORDS.idFromName('global'));
+        await Promise.allSettled((r.rooms || []).map(async (rid) => {
+          await env.ROOM.get(env.ROOM.idFromName(rid)).deleteRoom();
+          await registry.purgeRoom(env.ROOM.idFromName(rid).toString());
+        }));
         return json(url, { ok: true });
       }
       const body = await readBody(req);
@@ -515,6 +521,7 @@ async function handle(req, url, env, did) {
       await acc.touch(s.v, did);
       const unread = {};
       await Promise.all(rooms.map(async (r) => { try { const x = await env.ROOM.get(env.ROOM.idFromName(r)).inbox(did); if (x) unread[r] = x.n; } catch {} }));
+      try { await acc.noteRooms(Object.keys(unread)); } catch {}
       return json(url, { unread });
     }
     if (path === '/api/push/subscribe' || path === '/api/push/unsubscribe') {
@@ -712,6 +719,13 @@ export class Account extends DurableObject {
     }));
   }
 
+  // أرقام الغرف اللي الحساب ده عضو فيها (عشان مسح الحساب يمسحها عند الطرفين). الغرف الجديدة بس بتتسجل أول ما حد يدخلها أو يسأل عنها.
+  async noteRooms(rids) {
+    const list = await this.ctx.storage.get('rooms') || [];
+    const add = [...new Set(rids || [])].filter((r) => typeof r === 'string' && /^[0-9a-f]{64}$/.test(r) && !list.includes(r));
+    if (add.length) await this.ctx.storage.put('rooms', list.concat(add).slice(-500));
+    return true;
+  }
   async vaultGet() { return (await this.ctx.storage.get('vault')) || null; }
   async vaultPut(v) { await this.ctx.storage.put('vault', v); return true; }
   async savePush(did, subscription) { await this.ctx.storage.put('push:' + did, subscription); return true; }
@@ -922,7 +936,7 @@ export class Account extends DurableObject {
   // مسح كل بيانات الحساب بعد تأكيد الإيميل. الأجهزة التانية بتتحظر عشان متقدرش تاخد الحساب الجديد
   async wipeAccount(did) {
     return this.ctx.blockConcurrencyWhile(async () => {
-      const m = await this.ctx.storage.get(['recOk', 'blocked', 'cur', 'requests', 'pw']);
+      const m = await this.ctx.storage.get(['recOk', 'blocked', 'cur', 'requests', 'pw', 'rooms']);
       const ok = m.get('recOk'), now = Date.now();
       let bl = m.get('blocked') || [];
       if (bl.some((b) => b.d === did)) return { blocked: true };
@@ -936,7 +950,7 @@ export class Account extends DurableObject {
       const gone = [...all.keys()].filter((k) => k !== 'blocked' && !keep.has(k));
       for (let i = 0; i < gone.length; i += 120) await this.ctx.storage.delete(gone.slice(i, i + 120));
       await this.ctx.storage.put('blocked', bl.slice(-MAX_BLOCKED));
-      return { ok: true };
+      return { ok: true, rooms: m.get('rooms') || [] };
     });
   }
 
@@ -1028,6 +1042,7 @@ export class Room extends DurableObject {
     const members = await this.ctx.storage.get('members') || {};
     members[d] = { sub, d, language, t: Date.now() };
     await this.ctx.storage.put('members', members);
+    { const rid = req.headers.get('X-Room-Id') || ''; if (rid) { try { await this.env.ACCOUNT.get(this.env.ACCOUNT.idFromName(sub)).noteRooms([rid]); } catch {} } }
     const all = this.ctx.getWebSockets();
     server.send(JSON.stringify({ t: 'joined', n: all.length }));
     // مزامنة تفاضلية (زي واتساب/تيليجرام): الجهاز بيبعت since (أول رقم تسلسل ناقصه) والسيرفر يبعت الجديد بس.
@@ -1367,6 +1382,16 @@ export class RoomPasswords extends DurableObject {
       if (usedBy && usedBy !== roomId) return 'duplicate';
       await this.ctx.storage.put({ ['pw:' + fingerprint]: roomId, ['room:' + roomId]: fingerprint });
       return 'ok';
+    });
+  }
+  // مسح غرفة من السجل من غير ما نحتاج باسورد الغرفة (بيتستخدم لما صاحب الحساب يمسح حسابه بالكامل)
+  async purgeRoom(roomId) {
+    return this.ctx.blockConcurrencyWhile(async () => {
+      const fp = await this.ctx.storage.get('room:' + roomId);
+      if (fp && (await this.ctx.storage.get('pw:' + fp)) === roomId) await this.ctx.storage.delete('pw:' + fp);
+      await this.ctx.storage.delete('room:' + roomId);
+      await this.ctx.storage.put('deleted:' + roomId, true);
+      return true;
     });
   }
   async deleteRoom(fingerprint, roomId) {
