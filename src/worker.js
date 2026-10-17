@@ -1004,6 +1004,10 @@ export class Room extends DurableObject {
     for (let i = 0; i < count; i++) {
       const item = await this.ctx.storage.get('history:' + i);
       if (!item) continue;
+      if (item.opened === true) {
+        server.send(JSON.stringify({ t: 'msg', iv: '', ct: '', sentAt: item.sentAt, history: true, once: true, opened: true, mid: item.mid || '', fromSelf: item.fromDid === d, receipt: 'read' }));
+        continue;
+      }
       let ct = item.ct || '';
       if (item.parts) {
         ct = '';
@@ -1116,7 +1120,7 @@ export class Room extends DurableObject {
     }
     if (await this.ctx.storage.get('deleted')) return;
     const mid = typeof m.mid === 'string' && /^[a-f0-9]{32}$/.test(m.mid) ? m.mid : '';
-    const out = JSON.stringify({ t: 'msg', iv: m.iv, ct: m.ct, sentAt: Date.now(), mid, fromSelf: false });
+    const out = JSON.stringify({ t: 'msg', iv: m.iv, ct: m.ct, sentAt: Date.now(), mid, fromSelf: false, once: m.p === 1 && m.once === true });
     let delivered = false;
     for (const peer of this.ctx.getWebSockets()) {
       if (peer === ws) continue;
@@ -1183,10 +1187,10 @@ export class Room extends DurableObject {
       const index = await this.ctx.storage.get('mid:' + mid);
       if (!Number.isInteger(index)) return null;
       const item = await this.ctx.storage.get('history:' + index);
-      if (!item || item.once !== true || !readerDid || readerDid === item.fromDid) return null;
-      await this.ctx.storage.delete('history:' + index);
-      await this.ctx.storage.delete('mid:' + mid);
+      if (!item || item.once !== true || item.opened === true || !readerDid || readerDid === item.fromDid) return null;
       for (let part = 0; part < (item.parts || 0); part++) await this.ctx.storage.delete('history:' + index + ':' + part);
+      // المحتوى (iv + ciphertext) اتمسح نهائياً؛ اللي فاضل علامة "اتفتحت" بس.
+      await this.ctx.storage.put('history:' + index, { iv: '', sentAt: item.sentAt, parts: 0, mid, fromDid: item.fromDid, delivered: true, read: true, once: true, opened: true });
       return item;
     });
   }

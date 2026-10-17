@@ -78,9 +78,9 @@
   const chatOpen = () => { const c = $('chat'); return !!c && !c.classList.contains('hidden'); };
 
   // ---------- فقاعة الصورة في الشات (دايرة تحميل / ⟳ للإعادة) ----------
-  function bubble(previewUrl, retry, caption) {
+  function bubble(previewUrl, retry, caption, once) {
     const log = $('log'); if (!log) return { sending() {}, fail() {}, ok() {}, cancelled: false };
-    const m = document.createElement('div'); m.className = 'm me lrPending';
+    const m = document.createElement('div'); m.className = 'm me lrPending' + (once ? ' lrOnce' : '');
     const wrap = document.createElement('div'); wrap.className = 'lrPendWrap';
     const im = document.createElement('img'); im.alt = 'صورة'; im.src = previewUrl; im.draggable = false;
     const ov = document.createElement('button'); ov.type = 'button'; ov.className = 'lrPendOv';
@@ -106,14 +106,14 @@
   }
 
   // ---------- إرسال ملف جاهز (JPEG) مع محاولات ----------
-  async function sendPrepared(file, ui, caption) {
+  async function sendPrepared(file, ui, caption, once) {
     ui.cancelled = false; ui.sending();
     let lastErr;
     for (let attempt = 1; attempt <= 3; attempt++) {
       if (ui.cancelled) return false;
       try {
         step('send', attempt);
-        await window.lrSendSelectedImage(file, () => ui.cancelled, caption);
+        await window.lrSendSelectedImage(file, () => ui.cancelled, caption, once);
         if (ui.cancelled) return false;
         step('sent'); ui.ok(); return true;
       } catch (e) {
@@ -158,13 +158,13 @@
     openPreview(work);
   }
   // الإرسال الفعلي (بعد المعاينة): الصورة + الشرح لو اتكتب
-  async function sendFinal(cv, caption) {
+  async function sendFinal(cv, caption, once) {
     let prepared;
     try { prepared = await canvasToJpeg(cv); } catch (e) { say('❌ ' + (e?.message || 'تعذر تجهيز الصورة'), 6000); return; }
     if (!chatOpen()) { say('🔒 الشات اتقفل. ادخل الباسورد وارجع ابعت الصورة تاني.', 7000); return; }
     const previewUrl = URL.createObjectURL(prepared);
-    const ui = bubble(previewUrl, () => sendPrepared(prepared, ui, caption), caption);
-    const ok = await sendPrepared(prepared, ui, caption); // الشرح بيتبعت جوه نفس رسالة الصورة
+    const ui = bubble(previewUrl, () => sendPrepared(prepared, ui, caption, once), caption, once);
+    const ok = await sendPrepared(prepared, ui, caption, once); // الشرح بيتبعت جوه نفس رسالة الصورة
     if (ok) setTimeout(() => URL.revokeObjectURL(previewUrl), 3000);
   }
   // ================= صفحة المعاينة + القص =================
@@ -179,7 +179,9 @@
     '<div class="lrpTop"><button type="button" id="lrpClose" aria-label="إغلاق">' + ICON_X + '</button><span class="lrpGrow"></span>' +
     '<button type="button" id="lrpCrop" aria-label="قص">' + ICON_CROP + '</button></div>' +
     '<div class="lrpStage"><canvas id="lrpCv"></canvas></div>' +
-    '<div class="lrpBottom"><input id="lrpCaption" type="text" maxlength="1000" autocomplete="off" placeholder="إضافة شرح توضيحي...">' +
+    '<div class="lrpBottom"><div class="lrpCapWrap"><input id="lrpCaption" type="text" maxlength="1000" autocomplete="off" placeholder="إضافة شرح توضيحي...">' +
+    '<button type="button" id="lrpOnce" class="lrpOnce" role="switch" aria-checked="false" aria-label="عرض مرة واحدة"><span class="onceBadge">1</span></button></div>' +
+    '<div class="lrpOnceHint" id="lrpOnceHint"></div>' +
     '<div class="lrpRow"><button type="button" id="lrpSend" class="lrpSend" aria-label="إرسال">' + ICON_SEND + '</button></div></div>' +
     '<div class="lrpCrop hidden" id="lrpCropUI"><div class="lrpCropStage"><div class="lrpWrap" id="lrpWrap"><canvas id="lrpCropCv"></canvas>' +
     '<div class="lrpBox" id="lrpBox"><i class="g1"></i><i class="g2"></i><i class="g3"></i><i class="g4"></i>' +
@@ -188,12 +190,18 @@
   document.body.append(ov);
   const q = (id) => ov.querySelector('#' + id);
   const pv = q('lrpCv'), cropUI = q('lrpCropUI'), cropCv = q('lrpCropCv'), wrap = q('lrpWrap'), box = q('lrpBox');
-  const cap = q('lrpCaption'), sendBtn = q('lrpSend');
+  const cap = q('lrpCaption'), sendBtn = q('lrpSend'), onceBtn = q('lrpOnce'), onceHint = q('lrpOnceHint');
+  let once = false;
+  function setOnce(v) {
+    once = !!v; onceBtn.classList.toggle('on', once); onceBtn.setAttribute('aria-checked', once ? 'true' : 'false');
+    onceHint.textContent = once ? 'هتتعرض للطرف التاني مرة واحدة بس، وبعدها تتمسح من السيرفر' : '';
+  }
+  onceBtn.onclick = () => setOnce(!once);
   let cur = null, sending = false, cr = { x: 0, y: 0, w: 0, h: 0 }, dw = 0, dh = 0;
 
   function paint(cv, src) { cv.width = src.width; cv.height = src.height; cv.getContext('2d').drawImage(src, 0, 0); }
   function openPreview(c) {
-    cur = c; sending = false; sendBtn.disabled = false; cap.value = '';
+    cur = c; sending = false; sendBtn.disabled = false; cap.value = ''; setOnce(false);
     paint(pv, cur); cropUI.classList.add('hidden'); ov.classList.remove('hidden'); step('preview-open');
   }
   function closePreview() { ov.classList.add('hidden'); cropUI.classList.add('hidden'); cur = null; cap.value = ''; try { cap.blur(); } catch {} }
@@ -204,9 +212,9 @@
   sendBtn.onclick = async () => {
     if (sending || !cur) return;
     sending = true; sendBtn.disabled = true;
-    const c = cur, caption = cap.value.trim();
+    const c = cur, caption = cap.value.trim(), wantOnce = once;
     closePreview();
-    await sendFinal(c, caption);
+    await sendFinal(c, caption, wantOnce);
   };
   cap.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendBtn.click(); } });
 

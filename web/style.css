@@ -664,3 +664,17 @@ body.callBarOn #home{padding-top:1rem}
 .lrpBox .ml,.lrpBox .mr{height:28px;width:4px;top:calc(50% - 14px)}.lrpBox .ml{left:-2px}.lrpBox .mr{right:-2px}
 .lrpCropBar{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:14px 26px calc(env(safe-area-inset-bottom) + 14px);position:relative;z-index:3;background:#060d14}
 .lrpCropBar button{font-size:1.05rem;padding:8px 6px;min-width:56px}
+
+/* عرض مرة واحدة */
+.lrpCapWrap{position:relative}
+.lrpCapWrap input{padding-inline-end:58px}
+.lrpOnce{position:absolute;inset-inline-end:8px;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;display:grid;place-items:center;color:#cfe0ea}
+.lrpOnce .onceBadge{border-style:dashed;width:26px;height:26px}
+.lrpOnce.on{background:var(--g)!important;color:var(--gink)}
+.lrpOnce.on .onceBadge{border-style:solid}
+.lrpOnceHint{min-height:0;margin:8px 6px 0;font-size:13px;color:#9fe8cf;text-align:start}
+.lrpOnceHint:empty{display:none}
+.lrPending.lrOnce .lrPendWrap img{filter:blur(18px)!important}
+.viewOnceMessage.opened{opacity:.72}
+.viewOnceMessage.opened .onceBadge{border-style:dashed}
+.onceCap{max-width:90vw;margin:0;color:#fff;text-align:center;font-size:1rem}
