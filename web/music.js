@@ -137,6 +137,9 @@ async function lrmStart(file) {
   lrmEnsureAudio(); lrmUi();
   const ok = await lrmSend({ a: "offer", id, nm: name, z: file.size, n, t: type });
   if (!ok) { lrmCleanup(); return lrmToast(lrmT("فشل الإرسال.", "Send failed.")); }
+  for (let w = 0; w < 30 && !s.acked && !s.aborted; w++) await lrfSleep(200); // 6 ثواني
+  if (s.aborted) return;
+  if (!s.acked) { lrmClose(true); return lrmToast(lrmT("الطرف التاني مردّش — لازم يقفل التطبيق ويفتحه تاني علشان ياخد التحديث (1.21.0) أو يكون داخل الغرفة.", "The other person didn't respond — they need to close and reopen the app to get the update (1.21.0), and be in this room.")); }
   try {
     for (let i = 0; i < n; i++) {
       if (s.aborted) return;
@@ -149,6 +152,7 @@ async function lrmStart(file) {
     }
   } catch { if (lrmS === s) { lrmCleanup(); lrmToast(lrmT("الاتصال اتقطع أثناء الإرسال.", "Connection lost while sending.")); } return; }
   if (s.peerReady && !s.ready) lrmBegin(s);
+  else if (!s.ready) setTimeout(() => { if (lrmS === s && !s.ready) { lrmClose(true); lrmToast(lrmT("الطرف التاني ماجهّزش الأغنية. جرب تاني.", "The other person couldn't prepare the track. Try again.")); } }, 40000);
 }
 function lrmBegin(s) { // الطرفين جاهزين: ابدأ
   lrmReady(s, s.file);
@@ -165,13 +169,17 @@ function lrMusic(r) {
     const nm = String(r.nm || "audio").slice(0, 180), type = /^(audio|video)\//.test(String(r.t)) ? String(r.t).split(";")[0] : lrfType(nm, "");
     lrmS = { id: r.id, nm, n: r.n, mine: false, got: 0, parts: new Array(r.n), ready: false, room: L, type };
     lrmEnsureAudio(); lrmUi();
+    const me = lrmS; me.last = Date.now();
+    lrmSend({ a: "ack", id: r.id });
+    const wd = setInterval(() => { if (lrmS !== me || me.ready) return clearInterval(wd); if (Date.now() - me.last > 25000) { clearInterval(wd); lrmCleanup(); lrmToast(lrmT("استلام الأغنية وقف (الاتصال ضعيف).", "Receiving stopped (weak connection).")); } }, 3000);
     return;
   }
   if (!s || s.id !== r.id) return;
+  if (r.a === "ack") { if (s.mine) s.acked = true; return; }
   if (r.a === "chunk") {
     if (s.mine || s.ready || !(r.i >= 0 && r.i < s.n) || typeof r.d !== "string" || s.parts[r.i]) return;
     try { s.parts[r.i] = $e(r.d); } catch { return; }
-    s.got++;
+    s.got++; s.last = Date.now();
     if (s.got === s.n) {
       const blob = new Blob(s.parts, { type: s.type }); s.parts = null;
       lrmReady(s, blob);
