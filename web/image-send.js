@@ -187,22 +187,32 @@
     const ok = await sendPrepared(prepared, ui, caption, once); // الشرح بيتبعت جوه نفس رسالة الصورة
     if (ok) setTimeout(() => URL.revokeObjectURL(previewUrl), 3000);
   }
-  // ================= صفحة المعاينة + القص =================
-  const ICON_CROP = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>';
-  const ICON_ROT = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>';
+  // ================= صفحة المعاينة + التعديل (قص / تدوير / رسم) =================
+  const SV = (w, d, extra = '') => '<svg viewBox="0 0 24 24" width="' + w + '" height="' + w + '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ' + extra + '>' + d + '</svg>';
+  const ICON_CROP = SV(26, '<path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/>');
+  const ICON_ROT = SV(30, '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>');
+  const ICON_ROT_S = SV(26, '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>');
+  const ICON_PEN = SV(24, '<path d="M12 20h9"/><path d="M16.4 3.6a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>');
+  const ICON_UNDO = SV(24, '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>');
   const ICON_SEND = '<svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M2.5 12 21 3.5 17 12l4 8.5z"/></svg>';
   const ICON_X = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 5l14 14M19 5 5 19"/></svg>';
+  window.lrIcons = { ICON_SEND, ICON_X, SV };
+  const COLORS = ['#ffffff', '#ff3b30', '#ffcc00', '#34c759', '#0a84ff', '#bf5af2', '#000000'];
 
   const ov = document.createElement('div');
   ov.className = 'lrp hidden'; ov.dir = 'rtl'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-label', 'معاينة الصورة');
   ov.innerHTML =
     '<div class="lrpTop"><button type="button" id="lrpClose" aria-label="إغلاق">' + ICON_X + '</button><span class="lrpGrow"></span>' +
-    '<button type="button" id="lrpCrop" aria-label="قص">' + ICON_CROP + '</button></div>' +
+    '<button type="button" id="lrpPen" aria-label="رسم" title="رسم">' + ICON_PEN + '</button>' +
+    '<button type="button" id="lrpRotTop" aria-label="تدوير" title="تدوير">' + ICON_ROT_S + '</button>' +
+    '<button type="button" id="lrpCrop" aria-label="قص" title="قص">' + ICON_CROP + '</button></div>' +
     '<div class="lrpStage"><canvas id="lrpCv"></canvas></div>' +
-    '<div class="lrpBottom"><div class="lrpCapWrap"><input id="lrpCaption" type="text" maxlength="1000" autocomplete="off" placeholder="إضافة شرح توضيحي...">' +
-    '<button type="button" id="lrpOnce" class="lrpOnce" role="switch" aria-checked="false" aria-label="عرض مرة واحدة"><span class="onceBadge">1</span></button></div>' +
+    '<div class="lrpBottom"><div class="lrpDraw hidden" id="lrpDraw"><div class="lrpColors" id="lrpColors"></div>' +
+    '<button type="button" id="lrpUndo" aria-label="تراجع" title="تراجع">' + ICON_UNDO + '</button></div>' +
     '<div class="lrpOnceHint" id="lrpOnceHint"></div>' +
-    '<div class="lrpRow"><button type="button" id="lrpSend" class="lrpSend" aria-label="إرسال">' + ICON_SEND + '</button></div></div>' +
+    '<div class="lrpCapRow"><div class="lrpCapWrap"><input id="lrpCaption" type="text" maxlength="1000" autocomplete="off" placeholder="إضافة شرح توضيحي...">' +
+    '<button type="button" id="lrpOnce" class="lrpOnce" role="switch" aria-checked="false" aria-label="عرض مرة واحدة"><span class="onceBadge">1</span></button></div>' +
+    '<button type="button" id="lrpSend" class="lrpSend" aria-label="إرسال">' + ICON_SEND + '</button></div></div>' +
     '<div class="lrpCrop hidden" id="lrpCropUI"><div class="lrpCropStage"><div class="lrpWrap" id="lrpWrap"><canvas id="lrpCropCv"></canvas>' +
     '<div class="lrpBox" id="lrpBox"><i class="g1"></i><i class="g2"></i><i class="g3"></i><i class="g4"></i>' +
     '<b class="c tl"></b><b class="c tr"></b><b class="c bl"></b><b class="c br"></b><b class="c tm"></b><b class="c bm"></b><b class="c ml"></b><b class="c mr"></b></div></div></div>' +
@@ -211,38 +221,94 @@
   const q = (id) => ov.querySelector('#' + id);
   const pv = q('lrpCv'), cropUI = q('lrpCropUI'), cropCv = q('lrpCropCv'), wrap = q('lrpWrap'), box = q('lrpBox');
   const cap = q('lrpCaption'), sendBtn = q('lrpSend'), onceBtn = q('lrpOnce'), onceHint = q('lrpOnceHint');
+  const penBtn = q('lrpPen'), drawBar = q('lrpDraw'), colorsEl = q('lrpColors');
   let once = false;
   function setOnce(v) {
     once = !!v; onceBtn.classList.toggle('on', once); onceBtn.setAttribute('aria-checked', once ? 'true' : 'false');
     onceHint.textContent = once ? 'هتتعرض للطرف التاني مرة واحدة بس، وبعدها تتمسح من السيرفر' : '';
   }
   onceBtn.onclick = () => setOnce(!once);
-  let cur = null, sending = false, cr = { x: 0, y: 0, w: 0, h: 0 }, dw = 0, dh = 0;
+  let cur = null, sending = false, opts = {}, cr = { x: 0, y: 0, w: 0, h: 0 }, dw = 0, dh = 0;
 
+  // ---- الرسم: الخطوط بتتخزن لوحدها وبتتدمج في الصورة عند القص/التدوير/الإرسال ----
+  let strokes = [], drawOn = false, color = COLORS[1], stroke = null;
+  COLORS.forEach((c) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'lrpColor' + (c === color ? ' on' : ''); b.style.background = c; b.setAttribute('aria-label', c);
+    b.onclick = () => { color = c; colorsEl.querySelectorAll('.lrpColor').forEach((x) => x.classList.toggle('on', x === b)); };
+    colorsEl.append(b);
+  });
   function paint(cv, src) { cv.width = src.width; cv.height = src.height; cv.getContext('2d').drawImage(src, 0, 0); }
-  function openPreview(c) {
-    cur = c; sending = false; sendBtn.disabled = false; cap.value = ''; setOnce(false);
-    paint(pv, cur); cropUI.classList.add('hidden'); ov.classList.remove('hidden'); step('preview-open');
+  function drawStrokes(ctx) {
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const s of strokes) {
+      ctx.strokeStyle = s.color; ctx.fillStyle = s.color; ctx.lineWidth = s.w;
+      if (s.pts.length === 1) { ctx.beginPath(); ctx.arc(s.pts[0].x, s.pts[0].y, s.w / 2, 0, Math.PI * 2); ctx.fill(); continue; }
+      ctx.beginPath(); ctx.moveTo(s.pts[0].x, s.pts[0].y);
+      for (let i = 1; i < s.pts.length; i++) ctx.lineTo(s.pts[i].x, s.pts[i].y);
+      ctx.stroke();
+    }
   }
-  function closePreview() { ov.classList.add('hidden'); cropUI.classList.add('hidden'); cur = null; cap.value = ''; try { cap.blur(); } catch {} }
-  q('lrpClose').onclick = closePreview;
+  function render() { paint(pv, cur); drawStrokes(pv.getContext('2d')); }
+  function bake() { if (cur && strokes.length) { drawStrokes(cur.getContext('2d')); strokes = []; render(); } }
+  function setDraw(on) {
+    drawOn = !!on; penBtn.classList.toggle('on', drawOn); drawBar.classList.toggle('hidden', !drawOn); pv.classList.toggle('drawing', drawOn);
+  }
+  penBtn.onclick = () => { if (cur) setDraw(!drawOn); };
+  q('lrpUndo').onclick = () => { strokes.pop(); if (cur) render(); };
+  const mapPt = (e) => {
+    const r = pv.getBoundingClientRect(), sc = Math.min(r.width / pv.width, r.height / pv.height);
+    const ox = (r.width - pv.width * sc) / 2, oy = (r.height - pv.height * sc) / 2;
+    return { x: Math.min(pv.width, Math.max(0, (e.clientX - r.left - ox) / sc)), y: Math.min(pv.height, Math.max(0, (e.clientY - r.top - oy) / sc)), sc };
+  };
+  pv.addEventListener('pointerdown', (e) => {
+    if (!drawOn || !cur) return;
+    const p = mapPt(e);
+    stroke = { color, w: Math.max(4, Math.round(Math.max(pv.width, pv.height) / 150)), pts: [{ x: p.x, y: p.y }] };
+    strokes.push(stroke); try { pv.setPointerCapture(e.pointerId); } catch {}
+    render(); e.preventDefault();
+  });
+  pv.addEventListener('pointermove', (e) => { if (!stroke) return; const p = mapPt(e); stroke.pts.push({ x: p.x, y: p.y }); render(); e.preventDefault(); });
+  const endStroke = () => { stroke = null; };
+  pv.addEventListener('pointerup', endStroke); pv.addEventListener('pointercancel', endStroke);
+
+  function openPreview(c, o) {
+    cur = c; opts = o || {}; sending = false; sendBtn.disabled = false; cap.value = ''; setOnce(false); strokes = []; stroke = null; setDraw(false);
+    render(); cropUI.classList.add('hidden'); ov.classList.remove('hidden'); step('preview-open');
+  }
+  function closePreview(cancelled) {
+    const o = opts; opts = {};
+    ov.classList.add('hidden'); cropUI.classList.add('hidden'); cur = null; strokes = []; setDraw(false); cap.value = ''; try { cap.blur(); } catch {}
+    if (cancelled) { try { o.onCancel && o.onCancel(); } catch {} }
+  }
+  q('lrpClose').onclick = () => closePreview(true);
   // أمان: لو الشات اتقفل (قفل تلقائي) المعاينة تتشال فوراً ومتفضلش فوق شاشة القفل
-  setInterval(() => { if (!ov.classList.contains('hidden') && !chatOpen()) { closePreview(); say('🔒 الشات اتقفل.', 4000); } }, 500);
+  setInterval(() => { if (!ov.classList.contains('hidden') && !chatOpen()) { closePreview(false); say('🔒 الشات اتقفل.', 4000); } }, 500);
 
   sendBtn.onclick = async () => {
     if (sending || !cur) return;
     sending = true; sendBtn.disabled = true;
-    const c = cur, caption = cap.value.trim(), wantOnce = once;
-    closePreview();
+    bake();
+    const c = cur, caption = cap.value.trim(), wantOnce = once, o = opts;
+    closePreview(false);
+    try { o.onSend && o.onSend(); } catch {}
     await sendFinal(c, caption, wantOnce);
   };
   cap.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendBtn.click(); } });
+
+  // تدوير 90° مباشرة من الشاشة الرئيسية
+  function rotateCur() {
+    bake();
+    const n = document.createElement('canvas'); n.width = cur.height; n.height = cur.width;
+    const c = n.getContext('2d'); c.translate(n.width / 2, n.height / 2); c.rotate(Math.PI / 2); c.drawImage(cur, -cur.width / 2, -cur.height / 2);
+    cur = n; return n;
+  }
+  q('lrpRotTop').onclick = () => { if (cur) { rotateCur(); render(); } };
 
   // ---- وضع القص ----
   const MIN = 48;
   const applyBox = () => { box.style.left = cr.x + 'px'; box.style.top = cr.y + 'px'; box.style.width = cr.w + 'px'; box.style.height = cr.h + 'px'; };
   function startCrop() {
-    paint(cropCv, cur); cropUI.classList.remove('hidden');
+    bake(); paint(cropCv, cur); cropUI.classList.remove('hidden');
     requestAnimationFrame(() => {
       const r = cropCv.getBoundingClientRect(); dw = r.width; dh = r.height;
       cr = { x: 0, y: 0, w: dw, h: dh }; applyBox();
@@ -250,18 +316,23 @@
   }
   q('lrpCrop').onclick = () => { if (cur) startCrop(); };
   q('lrpCCancel').onclick = () => cropUI.classList.add('hidden');
-  q('lrpRot').onclick = () => {
-    const n = document.createElement('canvas'); n.width = cur.height; n.height = cur.width;
-    const c = n.getContext('2d'); c.translate(n.width / 2, n.height / 2); c.rotate(Math.PI / 2); c.drawImage(cur, -cur.width / 2, -cur.height / 2);
-    cur = n; startCrop();
-  };
+  q('lrpRot').onclick = () => { rotateCur(); startCrop(); };
   q('lrpCDone').onclick = () => {
     const sx = cur.width / dw, sy = cur.height / dh;
     const x = Math.max(0, Math.round(cr.x * sx)), y = Math.max(0, Math.round(cr.y * sy));
     const w = Math.max(1, Math.min(cur.width - x, Math.round(cr.w * sx))), h = Math.max(1, Math.min(cur.height - y, Math.round(cr.h * sy)));
     const n = document.createElement('canvas'); n.width = w; n.height = h;
     n.getContext('2d').drawImage(cur, x, y, w, h, 0, 0, w, h);
-    cur = n; paint(pv, cur); cropUI.classList.add('hidden'); step('cropped', w + 'x' + h);
+    cur = n; render(); cropUI.classList.add('hidden'); step('cropped', w + 'x' + h);
+  };
+  // واجهات للكاميرا الجديدة (camera.js)
+  window.lrOpenPhotoPreview = (c, o) => openPreview(c, o);
+  window.lrImgToCanvas = async (f) => {
+    const buf = await f.arrayBuffer();
+    if (!buf.byteLength) throw Error('الصورة فاضية أو مش مسموح بقراءتها');
+    const type = f.type && f.type.startsWith('image/') ? f.type : (sniffType(buf) || (window.lrfIsHeic?.('', f.name) ? 'image/heic' : ''));
+    if (!type) throw Error('الملف ده مش صورة');
+    return toCanvas(new Blob([buf], { type: window.lrfIsHeic?.(type, f.name) ? 'image/heic' : type }), f.name);
   };
   // سحب المقابض/الصندوق (pointer events: يشتغل بالإصبع والماوس)
   let drag = null;

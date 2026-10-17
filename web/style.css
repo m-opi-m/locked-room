@@ -923,3 +923,80 @@ html[dir=ltr] .vbSendBtn{transform:none}
 .ludoDie{display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);width:46px;height:46px;padding:7px;border-radius:12px;background:#fff;box-shadow:inset 0 -3px #0002,0 3px 8px #0004}
 .ludoDie i{width:9px;height:9px;margin:auto;border-radius:50%}.ludoDie i.on{background:#1b1f24}
 .ludoDie.rolling{animation:dieShake .17s linear infinite}@keyframes dieShake{25%{transform:rotate(-14deg) translateY(-3px)}75%{transform:rotate(14deg) translateY(-3px)}}
+
+/* ===== 1.27.0: الكاميرا الجديدة + معاينة الصورة + محرر الفيديو ===== */
+.lrcam{position:fixed;inset:0;z-index:9000;background:#000;color:#fff;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top)}
+.lrcam.hidden,.lrve.hidden{display:none}
+.lrcam button,.lrve button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.lrcamStage{position:relative;flex:1;min-height:0;overflow:hidden;background:#05080d;border-radius:0 0 18px 18px}
+.lrcamStage video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#05080d}
+.lrcamStage video.mirror{transform:scaleX(-1)}
+.lrcamTop{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:linear-gradient(#0009,transparent);z-index:2}
+.lrcamBtn{position:relative;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;background:#ffffff1f;backdrop-filter:blur(6px)}
+.lrcamBtn.on{background:var(--g)!important;color:var(--gink)}
+.lrcamBtn em{position:absolute;inset-inline-end:7px;bottom:6px;font-style:normal;font-size:.62rem;font-weight:800;line-height:1}
+.lrcamBtn em.hidden{display:none}
+.lrcamRec{display:inline-flex;align-items:center;gap:7px;background:#000a;border-radius:20px;padding:6px 12px;font-weight:700;font-variant-numeric:tabular-nums}
+.lrcamRec.hidden{display:none}
+.lrcamRec i{width:10px;height:10px;border-radius:50%;background:#ff3b30;animation:lrcamBlink 1s infinite}
+@keyframes lrcamBlink{50%{opacity:.25}}
+.lrcamNote{position:absolute;left:0;right:0;bottom:14px;text-align:center;font-size:.9rem;text-shadow:0 1px 4px #000;z-index:2;pointer-events:none}
+.lrcamStrip{flex:0 0 auto;display:flex;gap:4px;overflow-x:auto;padding:6px 6px 0;scrollbar-width:none;background:#000}
+.lrcamStrip::-webkit-scrollbar{display:none}
+.lrcamStrip.hidden{display:none}
+.lrcamThumb{position:relative;flex:0 0 auto;width:60px;height:72px;border-radius:6px;background:#14232f center/cover no-repeat;overflow:hidden}
+.lrcamThumb span{position:absolute;inset-inline:0;bottom:0;padding:8px 4px 3px;font-size:.62rem;font-weight:700;background:linear-gradient(transparent,#000b);text-align:start}
+.lrcamCtl{flex:0 0 auto;display:flex;align-items:center;justify-content:space-around;padding:12px 24px 6px}
+#lrcamShutter{position:relative;width:78px;height:78px;border-radius:50%;border:4px solid #fff;display:grid;place-items:center;padding:0;background:none;touch-action:none;transition:transform .15s}
+#lrcamShutter span{width:60px;height:60px;border-radius:50%;background:#fff;transition:.18s var(--ease)}
+#lrcamShutter.video span{background:#ff3b30}
+#lrcamShutter.recording{transform:scale(1.12);border-color:#ff3b30}
+#lrcamShutter.recording span{width:30px;height:30px;border-radius:8px;background:#ff3b30}
+.lrcamModes{flex:0 0 auto;display:flex;justify-content:center;gap:6px;padding:4px 10px calc(env(safe-area-inset-bottom) + 12px)}
+.lrcamModes button{padding:7px 16px;border-radius:18px;font-size:.95rem;color:#c9d6df}
+.lrcamModes button.on{background:#ffffff26;color:#fff;font-weight:700}
+
+/* معاينة الصورة (lrp) — الصورة تملا الشاشة والشرح + الإرسال في صف واحد */
+.lrp .lrpStage{padding:0;position:relative}
+.lrp .lrpStage canvas{width:100%;height:100%;max-width:none;max-height:none;object-fit:contain;border-radius:0}
+.lrp .lrpStage canvas.drawing{touch-action:none;cursor:crosshair}
+.lrpTop button.on{background:var(--g)!important;color:var(--gink)}
+.lrpBottom{padding:8px 10px calc(env(safe-area-inset-bottom) + 10px)}
+.lrpCapRow{display:flex;align-items:center;gap:8px}
+.lrpCapRow .lrpCapWrap{flex:1;min-width:0}
+.lrpCapRow .lrpSend{flex:0 0 auto}
+.lrpDraw{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 4px 10px}
+.lrpDraw.hidden{display:none}
+.lrpDraw button{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#ffffff1f}
+.lrpColors{display:flex;gap:8px;flex:1;justify-content:center}
+.lrpColor{width:30px;height:30px;border-radius:50%!important;border:2px solid #fff6!important}
+.lrpColor.on{border-color:#fff!important;transform:scale(1.22)}
+
+/* محرر الفيديو */
+.lrve{position:fixed;inset:0;z-index:10001;background:#060d14;color:#fff;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top)}
+.lrveTop{flex:0 0 auto;display:flex;padding:8px 10px 4px}
+.lrveStrip{position:relative;flex:0 0 auto;height:64px;margin:6px 16px 0;border-radius:6px;touch-action:none;user-select:none;-webkit-user-select:none}
+.lrveFrames{position:absolute;inset:0;display:flex;border-radius:6px;overflow:hidden;background:#14232f}
+.lrveFr{flex:1;min-width:0;height:100%;object-fit:cover;background:#14232f}
+.lrveDim{position:absolute;top:0;bottom:0;background:#060d14b8;pointer-events:none}
+#lrveDimL{left:0;border-radius:6px 0 0 6px}
+#lrveDimR{right:0;border-radius:0 6px 6px 0}
+.lrveSel{position:absolute;top:-3px;bottom:-3px;border:3px solid #fff;border-radius:8px;box-sizing:border-box;pointer-events:none}
+.lrveSel .h{position:absolute;top:-3px;bottom:-3px;width:30px;pointer-events:auto;touch-action:none}
+.lrveSel .h::after{content:"";position:absolute;top:50%;width:14px;height:14px;margin-top:-7px;border-radius:50%;background:#fff;box-shadow:0 1px 5px #0008}
+.lrveSel .h[data-h="l"]{left:-18px}
+.lrveSel .h[data-h="l"]::after{right:2px}
+.lrveSel .h[data-h="r"]{right:-18px}
+.lrveSel .h[data-h="r"]::after{left:2px}
+.lrveStrip.locked .lrveSel .h{pointer-events:none;opacity:.35}
+.lrvePh{position:absolute;top:-3px;bottom:-3px;width:2px;background:#ffffffcc;pointer-events:none;margin-left:-1px}
+.lrveInfo{flex:0 0 auto;display:flex;justify-content:flex-end;align-items:center;gap:8px;padding:12px 16px 4px;direction:ltr}
+.lrvePill{background:#000a;border-radius:18px;padding:7px 14px;font-size:.9rem;font-variant-numeric:tabular-nums}
+.lrveMute{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#000a}
+.lrveMute.on{background:var(--g)!important;color:var(--gink)}
+.lrveMute.hidden{display:none}
+.lrveStage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#000;margin-top:6px}
+.lrveStage video{width:100%;height:100%;object-fit:contain;background:#000}
+.lrvePlay{position:absolute;left:50%;top:50%;width:68px;height:68px;margin:-34px 0 0 -34px;border-radius:50%;background:#000a!important;display:grid;place-items:center;color:#fff}
+.lrvePlay.hidden{display:none}
+.lrveBottom{flex:0 0 auto;padding:8px 10px calc(env(safe-area-inset-bottom) + 10px)}

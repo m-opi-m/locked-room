@@ -35,3 +35,4 @@ appendFileSync('public/app.js', '\n' + (await transform(readFileSync('web/days.j
 appendFileSync('public/app.js', '\n' + (await transform(readFileSync('web/admin-enter.js', 'utf8'), { minify: true, charset: 'utf8', target: 'es2020' })).code);
 appendFileSync('public/app.js', '\n' + (await transform(readFileSync('web/chat-cache.js', 'utf8'), { minify: true, charset: 'utf8', target: 'es2020' })).code);
 appendFileSync('public/app.js', '\n' + (await transform(readFileSync('web/image-send.js', 'utf8'), { minify: true, charset: 'utf8', target: 'es2020' })).code);
+appendFileSync('public/app.js', '\n' + (await transform(readFileSync('web/camera.js', 'utf8'), { minify: true, charset: 'utf8', target: 'es2020' })).code);
