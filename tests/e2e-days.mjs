@@ -24,6 +24,6 @@ await add(now - 20 * D - 1000, 'start'); await p.waitForTimeout(300);
 ok('رسالة قديمة بنفس يوم أقدم فاصل ما بتكرّرش الفاصل', (await seps()).length === 4);
 await add(now - 40 * D, 'start'); await p.waitForTimeout(300);
 ok('رسالة أقدم (سجل) بتضيف فاصل جديد فوق', (await seps()).length === 5);
-ok('الفاصل sticky', await p.evaluate(() => getComputedStyle(document.querySelector('.daySep')).position === 'sticky'));
+ok('الفاصل جوه الشات (مش عايم/sticky)', await p.evaluate(() => getComputedStyle(document.querySelector('.daySep')).position === 'static'));
 ok('مفيش أخطاء JS', errs.length === 0);
 await browser.close(); srv.close(); console.log(fails ? fails + ' FAILED' : 'ALL PASS'); process.exit(fails ? 1 : 0);

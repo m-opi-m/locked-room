@@ -904,4 +904,6 @@ html[dir=ltr] .vbSendBtn{transform:none}
 .musicSeek:disabled{opacity:.6}
 
 /* ===== 1.22: فواصل التواريخ ===== */
-.daySep{align-self:center;position:sticky;top:8px;z-index:6;margin:.5rem 0 .25rem;padding:.28rem .9rem;border-radius:99px;background:#0b1c34ee;border:1px solid var(--line);color:#ffffffd0;font-size:.76rem;font-weight:600;backdrop-filter:blur(6px);pointer-events:none;flex:none}
+.daySep{align-self:stretch;display:flex;align-items:center;gap:.7rem;margin:.9rem .3rem .45rem;color:#ffffff99;font-size:.74rem;font-weight:600;pointer-events:none;flex:none;background:none;border:0;padding:0}
+.daySep::before,.daySep::after{content:"";flex:1;height:1px;background:linear-gradient(to var(--ds,right),transparent,#ffffff26)}
+.daySep::after{--ds:left}
