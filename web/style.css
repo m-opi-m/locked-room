@@ -1009,3 +1009,28 @@ html[dir=ltr] .vbSendBtn{transform:none}
 .lrShareBtn.tg{background:#2a8fd6;border-color:transparent;color:#fff}
 .lrShareCopy{width:100%}
 .lrShareClose{background:transparent;border:0;color:var(--mute);padding:.5rem;font-weight:700}
+
+/* ===== 1.28: تفاعلات الإيموجي ===== */
+.m{position:relative}
+.m.hasRx{margin-bottom:18px}
+.rxBadge{position:absolute;inset-inline-start:10px;bottom:-15px;display:flex;align-items:center;gap:2px;padding:2px 7px;min-height:26px;border:2px solid var(--bg);border-radius:999px;background:var(--panel2);color:var(--text);font-size:.95rem;line-height:1;box-shadow:0 2px 6px #0006;cursor:pointer}
+.rxBadge.mine{background:#14594f}
+.rxBadge em{font-style:normal;font-size:.7rem;color:var(--mute);margin-inline-start:2px}
+.rxPicker{position:fixed;z-index:125;display:flex;align-items:center;gap:4px;max-width:calc(100vw - 16px);padding:5px 6px;border:1px solid var(--line2);border-radius:999px;background:linear-gradient(165deg,#132a50,#0d1f3d);box-shadow:var(--shadow);animation:rxPop .16s ease both}
+.rxPicker.hidden{display:none}
+.rxStrip{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;min-width:0}
+.rxStrip::-webkit-scrollbar{display:none}
+.rxPicker button{flex:none;width:42px;height:42px;padding:0;border:0;border-radius:50%;background:transparent;font-size:1.5rem;line-height:1;color:var(--text);cursor:pointer}
+.rxPicker button.on{background:#ffffff26}
+.rxPicker button:active{transform:scale(1.2)}
+.rxPicker .rxPlus{background:#ffffff1a;font-size:1.6rem;font-weight:300}
+@keyframes rxPop{from{opacity:0;transform:translateY(6px) scale(.94)}to{opacity:1;transform:none}}
+.rxSheet{position:fixed;inset:0;z-index:130;display:flex;align-items:flex-end;background:#0008}
+.rxSheet.hidden{display:none}
+.rxSheetBox{width:100%;max-height:55vh;display:flex;flex-direction:column;padding:.6rem .6rem calc(.6rem + env(safe-area-inset-bottom,0px));border-radius:22px 22px 0 0;background:linear-gradient(165deg,#132a50,#0d1f3d);border-top:1px solid var(--line2)}
+.rxTabs{display:flex;gap:4px;justify-content:center;padding-bottom:.4rem}
+.rxTabs button{width:44px;height:40px;padding:0;border:0;border-radius:12px;background:transparent;font-size:1.3rem}
+.rxTabs button.on{background:#ffffff22}
+.rxGrid{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;overflow-y:auto;overscroll-behavior:contain}
+.rxGrid button{padding:6px 0;border:0;background:transparent;font-size:1.55rem;line-height:1.2;border-radius:10px}
+.rxGrid button:active{background:#ffffff22}
