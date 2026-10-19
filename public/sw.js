@@ -30,27 +30,65 @@ self.addEventListener('push',event=>{
 });
 self.addEventListener('notificationclick',event=>{event.notification.close();const target=new URL(event.notification.data?.url||'/',self.location.origin).href;event.waitUntil(self.clients.matchAll({type:'window',includeUncontrolled:true}).then(async clients=>{for(const client of clients){if(new URL(client.url).origin===self.location.origin){if('navigate'in client)await client.navigate(target);return client.focus();}}return self.clients.openWindow(target);}));});
 
-// ===== فتح التطبيق من غير إنترنت: نحفظ شكل التطبيق (الصفحة والـ js والـ css والأيقونات) ونرجعله لو مفيش نت =====
-const SHELL = 'lr-shell-v1';
-const SHELL_PATHS = new Set(['/', '/index.html', '/app.js', '/style.css', '/logo.png', '/icon-192.png', '/app-icon.png', '/apple-touch-icon.png', '/badge-96.png']);
+// ===== فتح التطبيق من غير إنترنت + سرعة على النت الضعيف (1.31.4) =====
+// - app.js و style.css بيتطلبوا بـ ?v=رقم-الإصدار (بيتغير مع كل نشر) فبنحفظهم ونقدّمهم من الكاش على طول من غير تحميل تاني.
+// - اللوجو والأيقونات: من الكاش على طول وبنجدّدهم في الخلفية.
+// - الصفحة (/): الشبكة الأول عشان التحديثات توصل فوراً، ولو بطيئة نرجع للمحفوظة، ولو وصلت متأخر نحفظها للمرة الجاية.
+const SHELL = 'lr-shell-v2';
+const PAGE_PATHS = new Set(['/', '/index.html']);
+const CODE_PATHS = new Set(['/app.js', '/style.css']);
+const ICON_PATHS = new Set(['/logo.png', '/icon-192.png', '/app-icon.png', '/apple-touch-icon.png', '/badge-96.png']);
+self.addEventListener('activate', e => e.waitUntil((async () => {
+  try { for (const k of await caches.keys()) if (k.startsWith('lr-shell-') && k !== SHELL) await caches.delete(k); } catch {}
+})()));
+async function networkFirst(p, req) {
+  const cache = await caches.open(SHELL);
+  const key = new Request(p === '/index.html' ? '/' : p);
+  const net = fetch(req, { cache: 'no-store' });
+  net.then(res => { if (res && res.ok) cache.put(key, res.clone()).catch(() => {}); }, () => {});
+  try {
+    return await Promise.race([net, new Promise((_, rej) => setTimeout(() => rej(new Error('slow')), 4000))]);
+  } catch {
+    const hit = await cache.match(key, { ignoreSearch: true });
+    return hit || fetch(req);
+  }
+}
+async function versioned(url, req) {
+  const cache = await caches.open(SHELL);
+  const hit = await cache.match(req);
+  if (hit) return hit;
+  try {
+    const res = await fetch(req);
+    if (res && res.ok) {
+      cache.put(req, res.clone()).then(async () => {
+        for (const k of await cache.keys()) { const u = new URL(k.url); if (u.pathname === url.pathname && u.search !== url.search) cache.delete(k); }
+      }).catch(() => {});
+    }
+    return res;
+  } catch {
+    return (await cache.match(url.pathname, { ignoreSearch: true })) || Response.error();
+  }
+}
+async function iconFirst(event, p, req) {
+  const cache = await caches.open(SHELL);
+  const hit = await cache.match(p);
+  if (hit) {
+    event.waitUntil(fetch(req, { cache: 'no-cache' }).then(res => { if (res && res.ok) return cache.put(p, res); }).catch(() => {}));
+    return hit;
+  }
+  try {
+    const res = await fetch(req);
+    if (res && res.ok) cache.put(p, res.clone()).catch(() => {});
+    return res;
+  } catch { return Response.error(); }
+}
 self.addEventListener('fetch', event => {
   const req = event.request;
   if (req.method !== 'GET') return;
-  const url = new URL(req.url);
-  if (url.origin !== self.location.origin || !SHELL_PATHS.has(url.pathname)) return; // /api و /ws و /auth دايماً من الشبكة
-  event.respondWith((async () => {
-    const cache = await caches.open(SHELL);
-    const key = new Request(url.pathname === '/index.html' ? '/' : url.pathname);
-    try {
-      // الشبكة الأول (عشان التحديثات توصل فوراً)، ولو بطيئة قوي نرجع للنسخة المحفوظة
-      const net = fetch(req, { cache: 'no-store' });
-      const res = await Promise.race([net, new Promise((_, rej) => setTimeout(() => rej(new Error('slow')), 6000))]);
-      if (res && res.ok) cache.put(key, res.clone()).catch(() => {});
-      return res;
-    } catch {
-      const hit = await cache.match(key, { ignoreSearch: true });
-      if (hit) return hit;
-      return fetch(req);
-    }
-  })());
+  const url = new URL(req.url), p = url.pathname;
+  if (url.origin !== self.location.origin) return;
+  if (PAGE_PATHS.has(p)) return event.respondWith(networkFirst(p, req));
+  if (CODE_PATHS.has(p)) return event.respondWith(url.searchParams.has('v') ? versioned(url, req) : networkFirst(p, req));
+  if (ICON_PATHS.has(p)) return event.respondWith(iconFirst(event, p, req));
+  // /api و /ws و /auth دايماً من الشبكة
 });

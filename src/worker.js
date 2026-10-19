@@ -653,7 +653,8 @@ async function handle(req, url, env, did) {
   if (req.method !== 'GET' || !PAGES.has(path)) return new Response('Not found', { status: 404 });
   const res = await env.ASSETS.fetch(new Request(new URL(path === '/admin' ? '/admin/' : path, url)));
   const headers = secHeaders(url, res.headers.get('Content-Type') || 'text/plain');
-  if (path === '/app.js' || path === '/style.css' || path === '/gallery-editor.js') headers['Cache-Control'] = 'no-cache';
+  if ((path === '/app.js' || path === '/style.css') && url.searchParams.has('v') && !isLocal(url)) headers['Cache-Control'] = 'public, max-age=31536000, immutable'; // الرابط فيه رقم الإصدار (بيتغير مع كل نشر) فمفيش داعي يتحمّل تاني
+  else if (path === '/app.js' || path === '/style.css' || path === '/gallery-editor.js') headers['Cache-Control'] = 'no-cache';
   else if (path !== '/' && path !== '/sw.js' && !path.startsWith('/admin')) headers['Cache-Control'] = 'public, max-age=3600, stale-while-revalidate=86400';
   return new Response(res.body, { status: res.status, headers });
 }

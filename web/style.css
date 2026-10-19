@@ -1070,3 +1070,14 @@ html[data-appearance] body{background:radial-gradient(900px 520px at 85% -8%,var
 #lrBoot .lrBootSpin{width:34px;height:34px;border-radius:50%;border:3px solid var(--line2,#2a4a74);border-top-color:var(--g,#22d8ae);animation:spin .9s linear infinite}
 #lrBoot .lrBootTxt{margin:0;font-size:14px;line-height:1.7;color:var(--mute,#8aa3bb)}
 #lrBoot.waiting .lrBootTxt{color:var(--amber,#ffcb6b)}
+
+/* 1.31.4: اللوجو بيتلوّن مع الثيم (شاشة اللودينج + الدخول + الرئيسية) — لون واحد بيتغيّر مع بعض، من غير صور زيادة */
+:root{--logoHue:0deg;--logoGlow:#22d8ae59;--brandTint:#9ff3de}
+html[data-appearance=pink]{--logoHue:165deg;--logoGlow:#f0509a59;--brandTint:#ffc1de}
+html[data-appearance=violet]{--logoHue:90deg;--logoGlow:#8f6bf559;--brandTint:#d4c6ff}
+html[data-appearance=orange]{--logoHue:-140deg;--logoGlow:#f27d1a59;--brandTint:#ffd2a6}
+html[data-appearance=blue]{--logoHue:45deg;--logoGlow:#2f8cf059;--brandTint:#b5d8ff}
+.loginLogo{filter:hue-rotate(var(--logoHue)) drop-shadow(0 12px 30px var(--logoGlow))}
+.brand img{filter:hue-rotate(var(--logoHue)) drop-shadow(0 4px 14px var(--logoGlow))}
+.brand span{background-image:linear-gradient(90deg,#fff,var(--brandTint))}
+#lrBoot img{filter:hue-rotate(var(--logoHue)) drop-shadow(0 8px 24px var(--logoGlow))}
