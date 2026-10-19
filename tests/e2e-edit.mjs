@@ -38,7 +38,7 @@ await B.click('#joinOpen'); await B.fill('#codeIn', code); await B.click('#join'
 
 const send = async (p, txt) => { await p.fill('#msg', txt); await p.click('#sendBtn'); await p.waitForTimeout(700); };
 const bubble = (p, txt) => p.locator('.m', { has: p.locator(':scope > p', { hasText: txt }) }).last();
-const more = (p, txt) => bubble(p, txt).locator(':scope > .messageMeta .msgMore');
+const more = (p, txt) => bubble(p, txt).locator(':scope > .msgMore');
 const tagN = (p, txt) => bubble(p, txt).locator(':scope > .messageMeta .editedTag').count();
 const menuOpen = (p) => p.locator('#messageActionMenu:not(.hidden)').count();
 const editVisible = (p) => p.locator('#editMessageAction:not(.hidden)').count();
@@ -51,8 +51,13 @@ await A.waitForTimeout(500);
 // 1) زرار الثلاث نقط
 ok('زرار ⋯ ظاهر على رسالتي', await more(A, 'orig-one').count() === 1);
 ok('زرار ⋯ ظاهر على رسالة الطرف التاني', await more(A, 'from-b').count() === 1);
+{ const bb = await bubble(A, 'orig-one').boundingBox(), mb = await more(A, 'orig-one').boundingBox(); const out = mb.x + mb.width <= bb.x + 1 || mb.x >= bb.x + bb.width - 1; ok('رسالتي: ⋯ برّه الفقاعة وجنبها', out); }
+{ const bb = await bubble(A, 'from-b').boundingBox(), mb = await more(A, 'from-b').boundingBox(); const out = mb.x + mb.width <= bb.x + 1 || mb.x >= bb.x + bb.width - 1; ok('رسالة الطرف التاني: ⋯ برّه الفقاعة وجنبها', out); }
+{ const b = await bubble(A, 'orig-one').boundingBox(); await A.mouse.move(b.x + b.width / 2, b.y + b.height / 2 - 6); await A.mouse.down(); await A.waitForTimeout(700); await A.mouse.up(); await A.waitForTimeout(250); }
+ok('الضغط المطوّل: شريط الإيموجي بس (من غير القايمة)', await A.locator('.rxPicker:not(.hidden)').count() === 1 && await menuOpen(A) === 0);
+await closeMenu(A); await A.keyboard.press('Escape');
 await more(A, 'orig-one').click(); await A.waitForTimeout(300);
-ok('الضغط على ⋯ بيفتح القايمة', await menuOpen(A) === 1);
+ok('الضغط على ⋯ بيفتح القايمة بس (من غير شريط الإيموجي)', await menuOpen(A) === 1 && await A.locator('.rxPicker:not(.hidden)').count() === 0);
 ok('رسالتي: زرار "تعديل" ظاهر', await editVisible(A) === 1);
 ok('القايمة فيها رد/نسخ/مسح كمان', await A.locator('#replyMessageAction,#copyMessageAction,#deleteMessageAction').count() === 3);
 await closeMenu(A);

@@ -1036,9 +1036,11 @@ html[dir=ltr] .vbSendBtn{transform:none}
 .rxGrid button:active{background:#ffffff22}
 
 /* ---------- 1.29: تعديل الرسايل + زرار الثلاث نقط ---------- */
-.m .msgMore{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;margin:-6px 0;padding:0;border:0;background:transparent;color:inherit;opacity:.7;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.m .msgMore:hover,.m .msgMore:focus-visible{opacity:1}
-.m .msgMore .uiIcon{width:18px;height:18px}
+.m .msgMore{position:absolute;top:50%;margin-top:-15px;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:50%;background:transparent;color:var(--text);opacity:.55;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.m.me .msgMore{inset-inline-end:-34px}
+.m.them .msgMore{inset-inline-start:-34px}
+.m .msgMore:hover,.m .msgMore:focus-visible{opacity:1;background:#ffffff14}
+.m .msgMore .uiIcon{width:20px;height:20px}
 .m .editedTag{opacity:.9;font-size:.66rem}
 .m.editing{outline:2px solid var(--g);outline-offset:2px}
 .replyBar.editBar{border-inline-start-color:#ffd166}

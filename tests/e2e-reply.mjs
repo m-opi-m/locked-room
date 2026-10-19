@@ -71,11 +71,11 @@ const bQ = bubble(B, 'my-answer').locator('.replyQuote');
 ok('عند B: وصل الاقتباس كمان', (await bQ.count()) === 1 && (await bQ.innerText()).includes('hello-original'));
 ok('عند B الاقتباس بيقول "أنت" (لأنه رد على رسالته هو)', (await bQ.locator('strong').innerText()) === 'أنت');
 ok('عند A الاقتباس باسم الطرف التاني', (await aQ.locator('strong').innerText()) !== 'أنت');
-// 4) قايمة الضغط المطوّل: رد + نسخ + مسح
+// 4) قايمة ⋯: رد + تعديل (لرسايلي النصية) + نسخ + مسح
 const target = bubble(B, 'my-answer'); const tb = await target.boundingBox();
-await B.mouse.move(tb.x + tb.width / 2, tb.y + tb.height - 6); await B.mouse.down(); await B.waitForTimeout(700); await B.mouse.up();
+await target.locator(':scope > .msgMore').click(); await B.waitForTimeout(300);
 const items = await B.locator('#messageActionMenu button:visible span').allInnerTexts();
-ok('القايمة فيها: رد، نسخ، مسح (بالترتيب): ' + items.join(' | '), items.length === 3 && items[0] === 'رد' && items[1] === 'نسخ' && items[2].includes('مسح'));
+ok('القايمة (من ⋯) على رسالة الطرف التاني: رد، نسخ، مسح (من غير تعديل): ' + items.join(' | '), items.length === 3 && items[0] === 'رد' && items[1] === 'نسخ' && items[2].includes('مسح'));
 await B.click('#replyMessageAction'); await B.waitForTimeout(300);
 ok('"رد" من القايمة بيفتح شريط الرد', await barShown(B) && (await B.locator('#replyText').innerText()).includes('my-answer'));
 ok('وده رد على رسالة الطرف التاني: الاسم مش "أنت"', (await B.locator('#replyWho').innerText()) !== 'أنت');

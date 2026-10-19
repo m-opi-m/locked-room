@@ -55,7 +55,7 @@ ok('شريط الإيموجي ظهر', await picker(A).count() === 1);
 const pb = await picker(A).boundingBox(), mb = await bubble(A, 'hello-react').boundingBox();
 ok('الشريط فوق الرسالة (' + Math.round(pb.y + pb.height) + ' <= ' + Math.round(mb.y) + ')', pb.y + pb.height <= mb.y + 2);
 ok('فيه زرار + و6 إيموجي على الأقل', await picker(A).locator('.rxPlus').count() === 1 && await picker(A).locator('.rxStrip button').count() >= 6);
-ok('قايمة (رد/نسخ/مسح) لسه بتظهر', await A.locator('#messageActionMenu:not(.hidden)').count() === 1);
+ok('الضغط المطوّل: شريط الإيموجي بس من غير قايمة (رد/نسخ/مسح)', await A.locator('#messageActionMenu:not(.hidden)').count() === 0);
 // 2) اختيار ❤️
 await picker(A).locator('.rxStrip button', { hasText: '❤️' }).click();
 await A.waitForTimeout(600);
