@@ -1062,3 +1062,11 @@ html[data-appearance] body{background:radial-gradient(900px 520px at 85% -8%,var
 #appearanceBox .apItem.on{border-color:var(--g);box-shadow:0 0 0 2px var(--gline)}
 #appearanceBox .apDot{width:44px;height:44px;border-radius:12px;box-shadow:inset 0 0 0 1px #ffffff22}
 #appearanceBox .apNote{font-size:.8rem;color:var(--mute);margin:4px 0 0}
+
+/* 1.31.3: شاشة اللودينج وقت الإقلاع / انتظار النت */
+#lrBoot{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:24px;background:var(--logbg,#060f20),var(--bg,#050d1b);color:var(--text,#e9f4f8)}
+#lrBoot .lrBootBox{display:grid;justify-items:center;gap:18px;text-align:center;max-width:320px}
+#lrBoot img{width:84px;height:84px;object-fit:contain;border-radius:22px}
+#lrBoot .lrBootSpin{width:34px;height:34px;border-radius:50%;border:3px solid var(--line2,#2a4a74);border-top-color:var(--g,#22d8ae);animation:spin .9s linear infinite}
+#lrBoot .lrBootTxt{margin:0;font-size:14px;line-height:1.7;color:var(--mute,#8aa3bb)}
+#lrBoot.waiting .lrBootTxt{color:var(--amber,#ffcb6b)}
