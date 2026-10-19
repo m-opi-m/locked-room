@@ -24,6 +24,7 @@ await build({ ...o, entryPoints: ['web/admin.css'], outfile: 'public/admin.css' 
 
 copyFileSync('web/logo.png', 'public/logo.png');
 copyFileSync('web/sw.js', 'public/sw.js');
+copyFileSync('web/knock.ogg', 'public/knock.ogg');
 copyFileSync('web/icon-192.png', 'public/icon-192.png');
 copyFileSync('web/app-icon.png', 'public/app-icon.png');
 copyFileSync('web/apple-touch-icon.png', 'public/apple-touch-icon.png');

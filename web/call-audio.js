@@ -11,8 +11,12 @@
     spk: ['مكبر الصوت', 'Speaker'],
     ear: ['سماعة الأذن', 'Earpiece'],
     oth: ['سماعة', 'Headset'],
+    noProx: ['المتصفح ده مفيهوش حسّاس القرب، فالشاشة مش هتقفل لوحدها عند الودن.', 'This browser has no proximity sensor access, so the screen will not turn off by your ear.'],
     no: ['مفيش مخرج صوت تاني متاح، أو المتصفح ما بيسمحش بالتحويل. استخدم أزرار الصوت في الموبايل.', 'No other audio output is available, or the browser does not allow switching. Use your phone’s sound controls.'],
   };
+  // داخل تطبيق الأندرويد فيه جسر native (AndroidAudio): تحويل حقيقي لسماعة الأذن + إطفاء الشاشة بحسّاس القرب.
+  const nat = (typeof window.AndroidAudio === 'object' && typeof window.AndroidAudio.setEarpiece === 'function') ? window.AndroidAudio : null;
+  const natSet = (ear) => { try { nat.setEarpiece(!!ear); } catch {} };
   const tr = (k) => TXT[k][en() ? 1 : 0];
   let cur = { kind: 'spk', id: '', label: '' }, soft = false, busy = false, toastEl = null, toastT = 0, menu = null;
 
@@ -21,8 +25,46 @@
     toastEl.textContent = msg; toastEl.classList.add('show');
     clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('show'), 4200);
   }
+  // ===== حسّاس القرب: شغّال في وضع سماعة الأذن بس =====
+  // المتصفح مبيقدرش يطفي الشاشة فعلاً، فبنغطيها بطبقة سودا بتمسك اللمس (OLED الأسود = مطفية، ومفيش لمسة غلط).
+  // الحسّاس: ProximitySensor (Generic Sensor) أو أحداث deviceproximity/userproximity لو المتصفح بيدعمهم.
+  let prox = null, proxCover = null, proxOn = false, proxWarned = false;
+  const coverSet = (near) => {
+    if (near && !proxCover) {
+      proxCover = document.createElement('div'); proxCover.id = 'lrProxCover';
+      proxCover.style.cssText = 'position:fixed;inset:0;background:#000;z-index:2147483647;touch-action:none;';
+      for (const ev of ['pointerdown', 'pointerup', 'click', 'touchstart', 'touchend', 'contextmenu']) proxCover.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); }, { passive: false });
+      document.body.appendChild(proxCover);
+    } else if (!near && proxCover) { proxCover.remove(); proxCover = null; }
+  };
+  const onDevProx = (e) => coverSet(typeof e.value === 'number' ? e.value < (e.max || 5) / 2 : false);
+  const onUserProx = (e) => coverSet(!!e.near);
+  function proxStart() {
+    if (proxOn) return; proxOn = true;
+    try {
+      if ('ProximitySensor' in window) {
+        prox = new window.ProximitySensor({ frequency: 8 });
+        prox.addEventListener('reading', () => coverSet(!!prox.near));
+        prox.addEventListener('error', () => { if (!proxWarned) { proxWarned = true; toast(tr('noProx')); } });
+        prox.start(); return;
+      }
+    } catch {}
+    if ('ondeviceproximity' in window || 'onuserproximity' in window) {
+      addEventListener('deviceproximity', onDevProx); addEventListener('userproximity', onUserProx); return;
+    }
+    if (!proxWarned) { proxWarned = true; toast(tr('noProx')); }
+  }
+  function proxStop() {
+    if (!proxOn) return; proxOn = false;
+    try { prox && prox.stop(); } catch {}
+    prox = null;
+    removeEventListener('deviceproximity', onDevProx); removeEventListener('userproximity', onUserProx);
+    coverSet(false);
+  }
+
   function render() {
     const spk = cur.kind === 'spk';
+    if (!nat && cur.kind === 'ear' && !call.classList.contains('hidden')) proxStart(); else proxStop();
     if (btn.classList.contains('isOn') !== spk) btn.classList.toggle('isOn', spk);
     if (btn.getAttribute('aria-pressed') !== String(spk)) btn.setAttribute('aria-pressed', String(spk));
     // بنكتب بس لو القيمة اتغيّرت: مترجم التطبيق بيراقب تغييرات النص، والكتابة المتكررة ممكن تعمل حلقة لا نهائية.
@@ -31,7 +73,7 @@
     const use = $('speakerIcon').querySelector('use'), href = cur.kind === 'ear' ? '#i-phone' : '#i-volume';
     if (use && use.getAttribute('href') !== href) use.setAttribute('href', href);
   }
-  const isEar = (d) => /earpiece|receiver|handset|سماعة الأذن/i.test(d.label || '');
+  const isEar = (d) => /earpiece|receiver|handset|phone speaker|ear speaker|سماعة الأذن/i.test(d.label || '');
   const isSpk = (d) => !isEar(d) && /speaker|loud|مكبر/i.test(d.label || '');
 
   // المخارج المتاحة بالترتيب: مكبر ← سماعة الأذن ← أي سماعة تانية متوصلة
@@ -61,7 +103,14 @@
     cur = soft ? { kind: 'ear', id: 'soft', label: '' } : { kind: 'spk', id: '', label: '' };
     render();
   }
+  function natToggle() {
+    const ear = cur.kind !== 'ear';
+    natSet(ear);
+    cur = ear ? { kind: 'ear', id: 'native', label: '' } : { kind: 'spk', id: '', label: '' };
+    render();
+  }
   async function next() {
+    if (nat) return natToggle();
     if (busy) return; busy = true;
     const opts = await options();
     if (opts.length < 2) { busy = false; return softToggle(); }
@@ -72,6 +121,7 @@
     if (!ok) softToggle();
   }
   async function pick() {
+    if (nat) return natToggle();
     hideMenu();
     const opts = await options();
     if (opts.length < 2) return softToggle();
@@ -101,6 +151,7 @@
     const hidden = call.classList.contains('hidden');
     if (hidden === wasHidden) return;
     wasHidden = hidden;
+    if (nat) { if (hidden) { try { nat.release(); } catch {} } else natSet(false); }
     if (hidden) {
       cur = { kind: 'spk', id: '', label: '' }; soft = false; hideMenu();
       try { vid.volume = 1; } catch {}
