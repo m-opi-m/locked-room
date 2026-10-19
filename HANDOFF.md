@@ -1,3 +1,6 @@
+> ## تحديث 1.30.0 (ثيمات التطبيق + تغيير الأيقونة)
+> الإعدادات ← السمات ← "ثيم التطبيق وأيقونته": الأصلي + 4 جداد (وردي بناتي، بنفسجي، برتقالي، أزرق). الثيم = متغيرات CSS تحت `html[data-appearance]` (آخر `web/style.css`) والاختيار في `localStorage['lrAppearance']` (`web/appearance.js` بيتضم في الـ build). جوه تطبيق الأندرويد 1.4.0 بينادي `window.AndroidIcon.set(key)` (`IconBridge.kt`) اللي بيبدّل `activity-alias` في الـ manifest (الأيقونات بـ hue-shift للأيقونة الأصلية). **ما اتجرّبش على موبايل**؛ اتجرّب الثيم والنداء على Chromium. تنبيه: بعض اللانشرات بتحتاج لحظات أو إعادة تشغيل عشان تعرض الأيقونة الجديدة.
+
 > ## تحديث 1.29.5 (جسر سماعة الأذن + حسّاس القرب في تطبيق الأندرويد 1.3.0)
 > داخل الـ APK بيتوفر `window.AndroidAudio` (`AudioBridge.kt`): `setEarpiece(true/false)` بـ `AudioManager` (MODE_IN_COMMUNICATION + `setCommunicationDevice` على أندرويد 12+ أو `isSpeakerphoneOn`) و`PROXIMITY_SCREEN_OFF_WAKE_LOCK` (بيطفي الشاشة فعلاً في وضع الأذن بس)، و`release()` عند نهاية المكالمة. `web/call-audio.js` بيستخدمه لو موجود (الزرار بيبدّل مكبر/أذن) وبيسيب الطبقة السودا للمتصفح العادي. **ما اتجرّبش على موبايل حقيقي.**
 

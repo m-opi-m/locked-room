@@ -1048,3 +1048,16 @@ html[dir=ltr] .vbSendBtn{transform:none}
 .m.swiping.swipeEdit::after{left:auto;right:-40px;background-color:#ffd16633;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffe9b0' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'/%3E%3C/svg%3E")}
 body.editing .composer .send{display:grid}
 body.editing .composer .recordControl{display:none}
+
+/* ---------- ثيمات التطبيق (الإعدادات ← السمات): الافتراضي بدون data-appearance ---------- */
+html[data-appearance=pink]{--bg:#1a0814;--bg2:#230c1c;--panel:#2f1226;--panel2:#411a35;--line:#5a2548;--line2:#7d3563;--g:#ff7eb9;--g2:#f0509a;--gink:#3a0620;--gsoft:#ff7eb91f;--gline:#ff7eb955;--me1:#c2306f;--me2:#9c2a6b;--them:#3a1730;--glow1:#5a1741;--glow2:#4a1636;--logbg:radial-gradient(760px 460px at 100% 0,#5a1741 0,transparent 62%),radial-gradient(640px 460px at 0 100%,#4a1636 0,transparent 58%),#1a0814}
+html[data-appearance=violet]{--bg:#0d081c;--bg2:#130c2a;--panel:#1c1240;--panel2:#2a1b5c;--line:#3a2878;--line2:#54409e;--g:#b49bff;--g2:#8f6bf5;--gink:#1b0c4a;--gsoft:#b49bff1f;--gline:#b49bff55;--me1:#6d49d8;--me2:#4f35a8;--them:#221a4a;--glow1:#33207a;--glow2:#2a1a62;--logbg:radial-gradient(760px 460px at 100% 0,#33207a 0,transparent 62%),radial-gradient(640px 460px at 0 100%,#2a1a62 0,transparent 58%),#0d081c}
+html[data-appearance=orange]{--bg:#170c05;--bg2:#20120a;--panel:#2e1a0d;--panel2:#402513;--line:#5a3519;--line2:#80502a;--g:#ffa24d;--g2:#f27d1a;--gink:#3a1a02;--gsoft:#ffa24d1f;--gline:#ffa24d55;--me1:#c4620f;--me2:#964a0c;--them:#36200f;--glow1:#5a3210;--glow2:#4a2a0e;--logbg:radial-gradient(760px 460px at 100% 0,#5a3210 0,transparent 62%),radial-gradient(640px 460px at 0 100%,#4a2a0e 0,transparent 58%),#170c05}
+html[data-appearance=blue]{--bg:#040f22;--bg2:#071a36;--panel:#0b2548;--panel2:#11346a;--line:#1a4585;--line2:#2a62b0;--g:#5fb0ff;--g2:#2f8cf0;--gink:#031a38;--gsoft:#5fb0ff1f;--gline:#5fb0ff55;--me1:#1f6fd1;--me2:#1752a0;--them:#10294f;--glow1:#0f3f80;--glow2:#0c3468;--logbg:radial-gradient(760px 460px at 100% 0,#0f3f80 0,transparent 62%),radial-gradient(640px 460px at 0 100%,#0c3468 0,transparent 58%),#040f22}
+html[data-appearance] body{background:radial-gradient(900px 520px at 85% -8%,var(--glow1) 0,transparent 62%),radial-gradient(760px 520px at -10% 108%,var(--glow2) 0,transparent 58%),var(--bg)}
+#appearanceBox{margin-bottom:18px}
+#appearanceBox .apGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:10px;margin:10px 0}
+#appearanceBox .apItem{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 6px;border:2px solid var(--line);border-radius:var(--r);background:var(--panel);color:var(--text);cursor:pointer;font:inherit;font-size:.85rem}
+#appearanceBox .apItem.on{border-color:var(--g);box-shadow:0 0 0 2px var(--gline)}
+#appearanceBox .apDot{width:44px;height:44px;border-radius:12px;box-shadow:inset 0 0 0 1px #ffffff22}
+#appearanceBox .apNote{font-size:.8rem;color:var(--mute);margin:4px 0 0}
