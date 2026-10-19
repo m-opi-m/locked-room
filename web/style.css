@@ -1081,3 +1081,5 @@ html[data-appearance=blue]{--logoHue:45deg;--logoGlow:#2f8cf059;--brandTint:#b5d
 .brand img{filter:hue-rotate(var(--logoHue)) drop-shadow(0 4px 14px var(--logoGlow))}
 .brand span{background-image:linear-gradient(90deg,#fff,var(--brandTint))}
 #lrBoot img{filter:hue-rotate(var(--logoHue)) drop-shadow(0 8px 24px var(--logoGlow))}
+
+.appVersion .verLine[hidden]{display:none}.appVersion .verLine+.verLine{margin-top:.2rem}.appVersion b{font-weight:600}
