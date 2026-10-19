@@ -18,8 +18,9 @@ function lrCallCard(r,mine,at){
   const ic=document.createElement("span");ic.className="callLogIc";ic.innerHTML=uiIcon(video?"video":"phone");
   const tx=document.createElement("div");
   const ti=document.createElement("strong"),sb=document.createElement("small");
-  ti.textContent=theirMiss?(video?(en?"Missed video call":"مكالمة فيديو فايتة"):(en?"Missed audio call":"مكالمة صوت فايتة")):(video?(en?"Video call":"مكالمة فيديو"):(en?"Audio call":"مكالمة صوت"));
-  sb.textContent=missed?(mine?(en?"No answer":"محدش رد"):oa(at||Date.now())):lrCallDur(Math.max(1,Number(r.d)||0));
+  const canc=missed&&r.c===1;
+  ti.textContent=theirMiss?(canc?(video?(en?"Cancelled video call":"مكالمة فيديو اتلغت"):(en?"Cancelled audio call":"مكالمة صوت اتلغت")):video?(en?"Missed video call":"مكالمة فيديو فايتة"):(en?"Missed audio call":"مكالمة صوت فايتة")):(video?(en?"Video call":"مكالمة فيديو"):(en?"Audio call":"مكالمة صوت"));
+  sb.textContent=missed?(mine?(r.c===1?(en?"Cancelled":"لغيت المكالمة"):r.c===2?(en?"Declined":"اترفضت"):(en?"No answer":"محدش رد")):oa(at||Date.now())):lrCallDur(Math.max(1,Number(r.d)||0));
   tx.append(ti,sb);top.append(ic,tx);
   const b=document.createElement("button");b.type="button";
   b.textContent=theirMiss?(en?"Call back":"اتصل بيه"):(en?"Call again":"اتصل تاني");
@@ -29,15 +30,28 @@ function lrCallCard(r,mine,at){
   };
   d.append(top,b);return d;
 }
-/* المتصل هو اللي بيبعت سجل المكالمة (عشان ميتكررش)، والطرفين بيشوفوه */
-function lrCallLog(){
+/* المتصل هو اللي بيبعت سجل المكالمة (عشان ميتكررش)، والطرفين بيشوفوه.
+   لو الاتصال مقطوع أو الشات مش مفتوح لحظة نهاية المكالمة: السجل بيستنى ويتبعت أول ما الشروط تتحقق (lrCallFlush). */
+let lrPendCall=null;
+function lrCallLog(byMe){
   try{
-    if(!lrCaller||!u||u.readyState!==1||!te||lrCRoom!==L||t("chat").classList.contains("hidden"))return;
+    if(!lrCaller||!lrCRoom)return;
     const sec=window.lrConnAt?Math.max(1,Math.round((Date.now()-window.lrConnAt)/1e3)):0;
     const r={k:"call",m:window.lrWasVideo?"video":"audio",s:sec?"done":"missed",d:sec};
-    Pe(r,lrCallCard(r,!0,Date.now()),"me");
+    if(!sec)r.c=window.lrNoAns?0:(byMe?1:2); /* 0=محدش رد · 1=المتصل كنسل · 2=التاني رفض/مشغول */
+    window.lrNoAns=0;
+    lrPendCall={room:lrCRoom,r,at:Date.now()};
+    lrCallFlush();
   }catch{}
 }
+function lrCallFlush(){
+  const q=lrPendCall;if(!q)return;
+  if(Date.now()-q.at>6e5){lrPendCall=null;return}
+  if(!u||u.readyState!==1||!te||q.room!==L||t("chat").classList.contains("hidden"))return;
+  lrPendCall=null;
+  Promise.resolve(Pe(q.r,lrCallCard(q.r,!0,Date.now()),"me")).then(ok=>{if(!ok&&!lrPendCall)lrPendCall=q}).catch(()=>{if(!lrPendCall)lrPendCall=q});
+}
+setInterval(lrCallFlush,1500);
 /* ===== تشغيل الفيديو في المكالمة: شاشة اختيار الوضع ===== */
 function lrSwapVideo(track){
   if(!g||!m)return;

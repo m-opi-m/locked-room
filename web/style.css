@@ -227,8 +227,9 @@ textarea{-webkit-user-select:text;user-select:text}
 .pill #msg{
   display:block;flex:1;min-width:0;width:auto;margin:0;padding:.7rem .4rem;border:0;background:none;box-shadow:none;border-radius:0;resize:none;outline:none;
   line-height:1.4;height:2.9rem;max-height:8.5rem;overflow-y:auto;overflow-x:hidden;white-space:pre-wrap;overflow-wrap:anywhere;
-  text-align:start;direction:inherit;scrollbar-width:thin;-webkit-overflow-scrolling:touch;touch-action:pan-y;
+  text-align:start;scrollbar-width:thin;-webkit-overflow-scrolling:touch;touch-action:pan-y;
 }
+.pill #msg:placeholder-shown{direction:inherit}
 .pill #msg:focus{box-shadow:none}
 .send{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--g),var(--g2));border:0;padding:0;color:var(--gink);transform:scaleX(-1);display:grid;place-items:center;flex:none;box-shadow:0 6px 20px #22d8ae45}
 .send:not(:disabled):active{transform:scaleX(-1) scale(.94)}
