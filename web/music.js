@@ -124,13 +124,23 @@ function lrmReady(s, blob) { // الملف جاهز عندي: حمّله وجه�
 }
 
 /* ===== الإرسال ===== */
+/* على الموبايل فتح قايمة اختيار الملفات بيودّي التطبيق للخلفية فالاتصال بيتقطع (والطرف التاني بيشوفك خرجت)،
+   وأول ما تختار الأغنية الاتصال لسه راجع. فبدل ما نرفض على طول نعيد الاتصال ونستنى لحد ما الاتنين يبقوا جوه الغرفة. */
+async function lrmOnline(ms) {
+  const up = () => !!(u && u.readyState === 1 && te && A === 2);
+  if (up()) return true;
+  try { if (window.lrReconnect) window.lrReconnect(); } catch {}
+  const end = Date.now() + ms;
+  while (Date.now() < end) { await lrfSleep(250); if (up()) return true; }
+  return false;
+}
 async function lrmStart(file) {
   if (!file) return;
   const name = (file.name || "audio").slice(0, 180), type = lrfType(name, file.type);
   if (!file.size) return lrmToast(lrmT("الملف فاضي.", "The file is empty."));
   if (!/^audio\//.test(type) && !/^video\/(mp4|webm|ogg|3gpp)$/.test(type)) return lrmToast(lrmT("اختار ملف صوتي.", "Please choose an audio file."));
   if (file.size > LRM_MAX) return lrmToast(lrmT("الملف كبير. الحد الأقصى 50 ميجابايت.", "File too large. Max 50 MB."));
-  if (!u || u.readyState !== 1 || !te || A !== 2) return lrmToast(lrmT("لازم الطرف التاني يكون متصل.", "The other person must be online."));
+  if (!(await lrmOnline(12000))) return lrmToast(lrmT("لازم الطرف التاني يكون متصل.", "The other person must be online."));
   if (lrmS) lrmClose(true);
   const id = ze(crypto.getRandomValues(new Uint8Array(8))), n = Math.ceil(file.size / LRM_CHUNK);
   const s = lrmS = { id, nm: name, n, mine: true, sent: 0, ready: false, room: L, file, type };
