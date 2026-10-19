@@ -132,3 +132,14 @@ document.addEventListener("visibilitychange",()=>{
     if(k.length&&k.every(x=>!x.enabled&&x.readyState==="live"))Nn("video");
   }
 });
+
+/* ===== 1.31.2: الكيبورد لما يفتح الشات ينزل لآخر رسالة (ويفضل مثبّت عليها لو كنت تحت) ===== */
+(function(){
+  const log=t("log"),msg=t("msg");if(!log||!msg)return;
+  let atBottom=true;
+  const toEnd=()=>{log.scrollTop=log.scrollHeight};
+  log.addEventListener("scroll",()=>{atBottom=log.scrollHeight-log.scrollTop-log.clientHeight<140},{passive:true});
+  if(window.ResizeObserver)new ResizeObserver(()=>{if(atBottom)toEnd()}).observe(log);
+  msg.addEventListener("focus",()=>{atBottom=true;toEnd();[120,300,600].forEach(d=>setTimeout(()=>{if(document.activeElement===msg&&atBottom)toEnd()},d))});
+  if(window.visualViewport)visualViewport.addEventListener("resize",()=>{if(atBottom)toEnd()});
+})();
