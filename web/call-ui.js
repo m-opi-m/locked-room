@@ -104,3 +104,17 @@ setInterval(()=>{
   const s=(c.textContent||"").trim();
   c.classList.toggle("lrShow",!!s&&!["متصل","بيرن...","بيتصل...","جاري الاتصال"].includes(s));
 },800);
+
+/* ===== مكالمة شغالة والشاشة اتقفلت / خرجت من التطبيق: المكالمة تكمل والكاميرا بس هي اللي تتقفل ===== */
+let lrCamAuto=false;
+document.addEventListener("visibilitychange",()=>{
+  if(v==="idle"||!g)return;
+  const vt=g.getVideoTracks();
+  if(document.hidden){
+    if(vt.length&&vt.every(x=>x.enabled)){lrCamAuto=true;Nn("video")}
+  }else if(lrCamAuto){
+    lrCamAuto=false;
+    const k=g.getVideoTracks();
+    if(k.length&&k.every(x=>!x.enabled&&x.readyState==="live"))Nn("video");
+  }
+});

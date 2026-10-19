@@ -86,7 +86,7 @@ function lrAutoRe(c){
   if(navigator.onLine===false)return;
   clearTimeout(lrReT);
   lrReT=setTimeout(async()=>{
-    if(document.hidden||!window.lrReconnect||!L||t("chat").classList.contains("hidden"))return;
+    if((document.hidden&&v==="idle")||!window.lrReconnect||!L||t("chat").classList.contains("hidden"))return;
     if(u&&u.readyState<2)return;
     try{await window.lrReconnect()}catch{}
   },1500+Math.min(lrReTry++,8)*1500);

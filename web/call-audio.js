@@ -151,7 +151,7 @@
     const hidden = call.classList.contains('hidden');
     if (hidden === wasHidden) return;
     wasHidden = hidden;
-    if (nat) { if (hidden) { try { nat.release(); } catch {} } else natSet(false); }
+    if (nat) { if (hidden) { try { nat.release(); } catch {} } else { natSet(false); try { nat.callStart && nat.callStart(); } catch {} } }
     if (hidden) {
       cur = { kind: 'spk', id: '', label: '' }; soft = false; hideMenu();
       try { vid.volume = 1; } catch {}
