@@ -9,7 +9,7 @@
   const attachBtn = $('attach');
   if (!attachBtn) return;
 
-  const MAX_SIDE = 1600, QUALITY = 0.85;
+  const MAX_SIDE = 1920, QUALITY = 0.82;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ---------- رسالة ظاهرة فوق (مستقلة عن #log) ----------
@@ -77,11 +77,15 @@
     c.getContext('2d').drawImage(d.src, 0, 0, c.width, c.height);
     return c;
   }
-  async function canvasToJpeg(cv) { // للإرسال: أقصى ضلع 1600
+  async function canvasToJpeg(cv) { // للإرسال: أقصى ضلع 1920، جودة عالية وحجم خفيف (لو الملف كبير بنخفّض الجودة شوية)
     const s = Math.min(1, MAX_SIDE / Math.max(cv.width, cv.height)), c = document.createElement('canvas');
     c.width = Math.max(1, Math.round(cv.width * s)); c.height = Math.max(1, Math.round(cv.height * s));
-    c.getContext('2d').drawImage(cv, 0, 0, c.width, c.height);
-    const out = await new Promise((r) => c.toBlob(r, 'image/jpeg', QUALITY));
+    const x = c.getContext('2d'); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high'; x.drawImage(cv, 0, 0, c.width, c.height);
+    let out = null;
+    for (const q of [QUALITY, 0.74, 0.66]) {
+      out = await new Promise((r) => c.toBlob(r, 'image/jpeg', q));
+      if (!out || out.size <= 700 * 1024) break;
+    }
     if (!out) throw Error('تعذر تجهيز الصورة');
     return new File([out], `locked-room-${Date.now()}.jpg`, { type: 'image/jpeg' });
   }

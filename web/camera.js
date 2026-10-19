@@ -139,8 +139,9 @@
   };
 
   // ---- فتح/تبديل الكاميرا ----
+  let facingExact = '';
   async function getStream(deviceId) {
-    return navigator.mediaDevices.getUserMedia({ audio: false, video: { width: { ideal: 1280 }, height: { ideal: 720 }, ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: { ideal: facing } }) } });
+    return navigator.mediaDevices.getUserMedia({ audio: false, video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 }, ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: facingExact ? { exact: facingExact } : { ideal: facing } }) } });
   }
   function useStream(s) {
     const old = stream; stream = s; vid.srcObject = s; vid.classList.toggle('mirror', (s.getVideoTracks()[0]?.getSettings?.().facingMode || facing) === 'user');
@@ -172,13 +173,38 @@
   function resumeLive() { if (!isOpen) return; if (!stream || !vTrack() || vTrack().readyState === 'ended') { restart(); return; } vid.play().catch(() => {}); if (flashMode !== 'off') applyFlash(); }
   async function restart() { try { const s = await getStream(); useStream(s); if (flashMode !== 'off') applyFlash(); } catch (e) { toast(window.lrMediaError ? window.lrMediaError(e, 'camera') : 'Camera error', 5000); close(); } }
   cq('lrcamClose').onclick = close;
+  // تبديل الكاميرا (أمامية/خلفية): بنقفل الكاميرا الحالية الأول (أغلب الموبايلات مبتفتحش كاميرتين مع بعض)
+  // وبعدين نفتح الاتجاه التاني بـ facingMode حقيقي (مش بالترتيب، عشان الموبايلات اللي فيها كذا كاميرا خلفية)،
+  // ولو فشلت بنرجّع الكاميرا اللي كانت شغالة.
+  let flipping = false;
   cq('lrcamFlip').onclick = async () => {
-    if (!stream || recorder) return;
-    let devs = []; try { devs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput'); } catch {}
-    const t = vTrack(), curId = t?.getSettings?.().deviceId || '', i = devs.findIndex((d) => d.deviceId === curId);
-    const next = devs.length > 1 ? devs[(i + 1 + devs.length) % devs.length] : null, nf2 = t?.getSettings?.().facingMode === 'environment' ? 'user' : 'environment';
-    try { torch(false); const s = await getStream(next && next.deviceId); facing = nf2; useStream(s); if (flashMode !== 'off') applyFlash(); }
-    catch { note.textContent = arabic() ? 'لا توجد كاميرا أخرى متاحة' : 'No other camera is available'; setTimeout(() => { note.textContent = ''; }, 2200); }
+    if (!stream || recorder || flipping) return;
+    flipping = true;
+    const t0 = vTrack(), cur = t0?.getSettings?.().facingMode || facing, want = cur === 'user' ? 'environment' : 'user', prev = facing;
+    try { torch(false); } catch {}
+    clearInterval(flashTimer); flashTimer = 0;
+    stream.getTracks().forEach((t) => t.stop());
+    let s = null;
+    for (const ex of [want, '']) {
+      try { facing = want; facingExact = ex; s = await getStream(); if (s) break; } catch {}
+    }
+    facingExact = '';
+    if (!s) { // دوّر بالاسم (front/back) في قايمة الكاميرات
+      try {
+        const devs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
+        const re = want === 'user' ? /front|user|selfie|أمام/i : /back|rear|environment|خلف/i;
+        const d = devs.find((x) => re.test(x.label || ''));
+        if (d) s = await getStream(d.deviceId);
+      } catch {}
+    }
+    if (!s) { // فشل: رجّع الكاميرا الأولى
+      facing = prev;
+      try { s = await getStream(); } catch {}
+      note.textContent = arabic() ? 'لا توجد كاميرا أخرى متاحة' : 'No other camera is available'; setTimeout(() => { note.textContent = ''; }, 2200);
+    }
+    if (s) { useStream(s); if (flashMode !== 'off') applyFlash(); }
+    else { toast(arabic() ? 'معرفتش أرجّع الكاميرا.' : 'Could not restart the camera.', 4000); close(); }
+    flipping = false;
   };
   document.addEventListener('visibilitychange', () => { if (!document.hidden && isOpen && cam.classList.contains('hidden') === false && (!vTrack() || vTrack().readyState === 'ended') && !recorder) restart(); });
 
@@ -207,12 +233,31 @@
   }
 
   // ---- صورة ----
-  function snap() {
-    if (!stream || !vid.videoWidth) return;
-    const c = document.createElement('canvas'); c.width = vid.videoWidth; c.height = vid.videoHeight; c.getContext('2d').drawImage(vid, 0, 0);
-    c.toBlob((b) => { if (b) addRecent({ type: 'image', blob: b }); }, 'image/jpeg', 0.9);
-    pauseLive();
-    window.lrOpenPhotoPreview(c, { onCancel: resumeLive, onSend: close });
+  let snapping = false;
+  async function snap() {
+    if (!stream || !vid.videoWidth || snapping) return;
+    snapping = true;
+    try {
+      let c = null, blob = null;
+      // 1) صورة كاملة الدقة من حسّاس الكاميرا (فوكس وتقليل تشويش أحسن بكتير من لقطة الفيديو)
+      try {
+        const t = vTrack();
+        if (window.ImageCapture && t && t.readyState === 'live' && window.lrImgToCanvas) {
+          const ic = new ImageCapture(t);
+          const b = await Promise.race([ic.takePhoto(), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 3500))]);
+          if (b && b.size) { c = await window.lrImgToCanvas(new File([b], 'cam.jpg', { type: b.type || 'image/jpeg' })); blob = b; }
+        }
+      } catch { c = null; }
+      // 2) احتياطي: لقطة من الفيديو الحي
+      if (!c) {
+        c = document.createElement('canvas'); c.width = vid.videoWidth; c.height = vid.videoHeight;
+        const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(vid, 0, 0);
+        blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.92));
+      }
+      if (blob) addRecent({ type: 'image', blob });
+      pauseLive();
+      window.lrOpenPhotoPreview(c, { onCancel: resumeLive, onSend: close });
+    } finally { snapping = false; }
   }
 
   // ---- فيديو (مع صوت لو المايك متاح) ----
