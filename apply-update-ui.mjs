@@ -71,6 +71,22 @@ let firstTime = false;
     out.push([KT, t, crlf]);
   }
 }
+// 4b) إصلاح التعليق بعد الرجوع للتطبيق (من شاشة التثبيت/غيرها): صحّي الـ WebView وأعد تشغيله لو انهار
+{
+  const i = out.findIndex((o) => o[0] === KT);
+  const cur = i >= 0 ? { text: out[i][1], crlf: out[i][2] } : read(KT);
+  if (cur.text.includes('LR-RESUME-FIX')) console.log('• إصلاح الاستئناف: متطبّق قبل كده');
+  else {
+    let t = cur.text;
+    const a1 = 'web.onResume(); web.removeCallbacks(fcmLoop); web.post(fcmLoop)';
+    if (t.split(a1).length !== 2) fail('MainActivity.kt: شكل onResume مختلف عن المتوقع، ابعتلي الملف.');
+    t = t.replace(a1, () => 'web.onResume(); web.resumeTimers(); web.requestFocus()   // LR-RESUME-FIX\n        web.evaluateJavascript("try{window.dispatchEvent(new Event(\'focus\'));document.dispatchEvent(new Event(\'visibilitychange\'))}catch(e){}", null)\n        web.removeCallbacks(fcmLoop); web.post(fcmLoop)');
+    const a2 = '            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: android.webkit.WebResourceError) {';
+    if (t.split(a2).length !== 2) fail('MainActivity.kt: مش لاقي onReceivedError، ابعتلي الملف.');
+    t = t.replace(a2, () => '            // لو عملية الـ WebView اتقتلت (الصفحة تفضل ظاهرة بس مش بتستجيب): نعيد تشغيل الشاشة بدل ما نفضل معلّقين\n            override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {\n                pageOk = false; loadFailed = false\n                try { (view.parent as? android.view.ViewGroup)?.removeView(view); view.destroy() } catch (_: Exception) {}\n                recreate()\n                return true\n            }\n\n' + a2);
+    if (i >= 0) out[i][1] = t; else out.push([KT, t, cur.crlf]);
+  }
+}
 // 5) زوّد إصدار الموقع (قاعدة المشروع) — مرة واحدة بس
 if (firstTime) {
   const { text, crlf } = read('package.json');
