@@ -4,6 +4,7 @@
 //   npm run release -- minor                 (1.6.1 -> 1.7.0)
 //   npm run release -- 1.8.0                 (رقم محدد)
 //   npm run release -- patch "ملاحظات التحديث"
+//   npm run release -- 1.6.2 --code=12       (تحديد versionCode بنفسك لو لزم)
 //
 // بيعمل: يزوّد versionName/versionCode في build.gradle.kts -> يبني ويوقّع الـ APK
 //        -> ينسخه لـ app-release/locked-room.apk -> يحدّث app-update.json -> npm run deploy.
@@ -29,7 +30,9 @@ const run = (cmd, args, cwd, env = process.env) =>
   spawnSync(cmd, args, { cwd, stdio: 'inherit', shell: true, env }).status === 0;
 
 // ---------- المدخلات ----------
-const [bump = '', ...noteWords] = process.argv.slice(2);
+const rawArgs = process.argv.slice(2);
+const codeFlag = rawArgs.find((a) => a.startsWith('--code='));
+const [bump = '', ...noteWords] = rawArgs.filter((a) => !a.startsWith('--code='));
 const notes = noteWords.join(' ');
 if (!bump) die('اكتب نوع التحديث: patch أو minor أو major أو رقم زي 1.8.0\n   مثال: npm run release -- patch');
 
@@ -39,9 +42,16 @@ if (!existsSync(join(APP_DIR, 'gradlew.bat'))) die('مفيش gradlew.bat في ف
 if (!existsSync(join(APP_DIR, 'keystore.properties'))) die('مفيش keystore.properties في فولدر مشروع التطبيق (محتاجه عشان التوقيع).');
 
 // ---------- حساب الإصدار الجديد ----------
-const base = existsSync(META_FILE)
+let base = existsSync(META_FILE)
   ? JSON.parse(readFileSync(META_FILE, 'utf8'))
   : { versionCode: 0, versionName: '1.0.0' };
+// لو build.gradle.kts فيه إصدار أعلى من المنشور (مثلاً اتعدّل يدوي)، ابدأ منه.
+{
+  const g = readFileSync(GRADLE_FILE, 'utf8');
+  const gc = Number((g.match(/versionCode\s*=\s*(\d+)/) || [])[1]);
+  const gn = (g.match(/versionName\s*=\s*"([^"]*)"/) || [])[1];
+  if (gc > Number(base.versionCode) && gn) base = { ...base, versionCode: gc, versionName: gn };
+}
 const [maj, min, pat] = String(base.versionName).split('.').map(Number);
 if ([maj, min, pat].some(Number.isNaN)) die(`versionName في app-update.json مش بالشكل 1.2.3: ${base.versionName}`);
 
@@ -52,7 +62,11 @@ else if (bump === 'major') name = `${maj + 1}.0.0`;
 else if (/^\d+\.\d+\.\d+$/.test(bump)) name = bump;
 else die('النوع لازم يكون patch أو minor أو major أو رقم زي 1.8.0');
 if (name === base.versionName) die(`الإصدار ${name} هو نفس المنشور حالياً.`);
-const code = Number(base.versionCode) + 1;
+let code = Number(base.versionCode) + 1;
+if (codeFlag) {
+  code = Number(codeFlag.split('=')[1]);
+  if (!Number.isInteger(code) || code <= Number(base.versionCode)) die(`--code لازم يكون رقم صحيح أكبر من ${base.versionCode}`);
+}
 
 // ---------- تعديل build.gradle.kts ----------
 const original = readFileSync(GRADLE_FILE, 'utf8');
