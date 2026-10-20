@@ -1083,3 +1083,10 @@ html[data-appearance=blue]{--logoHue:45deg;--logoGlow:#2f8cf059;--brandTint:#b5d
 #lrBoot img{filter:hue-rotate(var(--logoHue)) drop-shadow(0 8px 24px var(--logoGlow))}
 
 .appVersion .verLine[hidden]{display:none}.appVersion .verLine+.verLine{margin-top:.2rem}.appVersion b{font-weight:600}
+
+/* زر تحديث التطبيق (جوه الأندرويد بس) — بيوميض لما يكون فيه تحديث */
+.appUpdateBtn{display:block;width:100%;margin-top:.8rem;padding:.85rem 1rem;border:0;border-radius:14px;background:var(--ok);color:#06231a;font-weight:800;font-size:1rem;cursor:pointer}
+.appUpdateBtn[hidden]{display:none}
+.appUpdateBtn.blink{animation:appUpdBlink 1s ease-in-out infinite}
+.appUpdateBtn:disabled{opacity:.85;cursor:default}
+@keyframes appUpdBlink{0%,100%{opacity:1;box-shadow:0 0 0 0 #5ce1a58c}50%{opacity:.5;box-shadow:0 0 0 10px #5ce1a500}}

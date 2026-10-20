@@ -1,6 +1,7 @@
 // npm run build: بيصغّر web/ ويحطه في public/
 import { build, transform } from 'esbuild';
-import { readFileSync, writeFileSync, copyFileSync, appendFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, copyFileSync, appendFileSync, mkdirSync, existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 // رقم الإصدار اللي بيظهر في الإعدادات مصدره package.json (حقل version). زوّده مع أي تعديل.
 const VERSION = JSON.parse(readFileSync('package.json', 'utf8')).version;
 // السيرفر محتاج يعرف رقم الإصدار عشان يبعت إشعار "فيه تحديث" بعد النشر.
@@ -38,3 +39,16 @@ appendFileSync('public/app.js', '\n' + (await transform(readFileSync('web/admin-
 appendFileSync('public/app.js', '\n' + (await transform(readFileSync('web/chat-cache.js', 'utf8'), { minify: true, charset: 'utf8', target: 'es2020' })).code);
 appendFileSync('public/app.js', '\n' + (await transform(readFileSync('web/image-send.js', 'utf8'), { minify: true, charset: 'utf8', target: 'es2020' })).code);
 appendFileSync('public/app.js', '\n' + (await transform(readFileSync('web/camera.js', 'utf8'), { minify: true, charset: 'utf8', target: 'es2020' })).code);
+appendFileSync('public/app.js', '\n' + (await transform(readFileSync('web/app-update.js', 'utf8'), { minify: true, charset: 'utf8', target: 'es2020' })).code);
+
+// تحديث تطبيق الأندرويد من جوّاه: حط الـ APK الجديد في app-release/locked-room.apk وجنبه app-release/app-update.json
+// ({ "versionCode": 10, "versionName": "1.6.0", "notes": "" } — نفس القيم اللي في app/build.gradle.kts) وبعدين انشر.
+// الـ build بيحسب الحجم والـ SHA-256 للـ APK لوحده والتطبيق بيتأكد منهم بعد التحميل. (حد Cloudflare للملف الواحد 25MB.)
+if (existsSync('app-release/locked-room.apk') && existsSync('app-release/app-update.json')) {
+  const meta = JSON.parse(readFileSync('app-release/app-update.json', 'utf8'));
+  const apk = readFileSync('app-release/locked-room.apk');
+  if (!Number.isInteger(meta.versionCode) || !meta.versionName) throw new Error('build: app-update.json لازم فيه versionCode (رقم) و versionName');
+  if (apk.length > 25 * 1024 * 1024) throw new Error('build: الـ APK أكبر من 25MB (حد Cloudflare Assets)');
+  copyFileSync('app-release/locked-room.apk', 'public/locked-room.apk');
+  writeFileSync('public/app-update.json', JSON.stringify({ versionCode: meta.versionCode, versionName: meta.versionName, notes: meta.notes || '', size: apk.length, sha256: createHash('sha256').update(apk).digest('hex') }));
+}
