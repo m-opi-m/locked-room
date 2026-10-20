@@ -7,6 +7,7 @@
     "build": "node check-version.mjs && node build.mjs",
     "dev": "npm run build && wrangler dev",
     "deploy": "node check-version.mjs --strict && node build.mjs && wrangler deploy && node check-version.mjs --stamp",
+    "release": "node release-app.mjs",
     "check": "node check-version.mjs --strict",
     "test": "node test-devices.mjs",
     "test:fcm": "node tests/fcm.mjs"
